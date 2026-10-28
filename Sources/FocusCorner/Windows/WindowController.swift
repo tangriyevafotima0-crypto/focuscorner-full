@@ -1,0 +1,712 @@
+import AppKit
+import SwiftUI
+import Combine
+import Carbon
+
+private func focusCornerHotKeyCallback(
+    nextHandler: EventHandlerCallRef?,
+    theEvent: EventRef?,
+    userData: UnsafeMutableRawPointer?
+) -> OSStatus {
+    var hotKeyID = EventHotKeyID()
+    let status = GetEventParameter(
+        theEvent,
+        EventParamName(kEventParamDirectObject),
+        EventParamType(typeEventHotKeyID),
+        nil,
+        MemoryLayout<EventHotKeyID>.size,
+        nil,
+        &hotKeyID
+    )
+    if status == noErr {
+        let id = hotKeyID.id
+        Task { @MainActor in
+            if id == 1 || id == 2 {
+                WindowController.shared.SummonNotebookViaShortcut()
+            } else if id == 3 {
+                if FocusTimerManager.shared.isActive {
+                    FocusTimerManager.shared.togglePause()
+                } else {
+                    FocusTimerManager.shared.startSingular()
+                }
+            }
+        }
+    }
+    return noErr
+}
+
+@MainActor
+public final class WindowController: NSObject, ObservableObject, NSWindowDelegate {
+    public static let shared = WindowController()
+
+    public private(set) var rulesPanel: FloatingPanel?
+    public private(set) var notesPanel: FloatingPanel?
+    public private(set) var timerPanel: FloatingPanel?
+    public private(set) var morningPromptPanel: FloatingPanel?
+
+    @Published public var isRulesVisible: Bool = false
+    @Published public var isNotesVisible: Bool = true
+    @Published public var isTimerHUDVisible: Bool = false
+    @Published public var isStealthHidden: Bool = false
+    @Published public var snoozeRemainingSeconds: Int = 0
+    @Published public var requestedMainTab: CalmMainTab? = nil
+
+    private var preTimerNotesVisible: Bool = true
+    private var preTimerRulesVisible: Bool = false
+
+    private var snoozeTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
+    private var globalKeyMonitor: Any?
+    private var localKeyMonitor: Any?
+    private var hotKeyRefOptSpace: EventHotKeyRef?
+    private var hotKeyRefCmdShiftB: EventHotKeyRef?
+    private var hotKeyEventHandler: EventHandlerRef?
+
+    private let edgeInset: CGFloat = 22.0
+    private let collapsedHeaderHeight: CGFloat = 44.0
+    private let standardTimerSize = NSSize(width: 336, height: 134)
+    private let compactTimerPillSize = NSSize(width: 232, height: 46)
+
+    private override init() {
+        super.init()
+        setupNotifications()
+        setupGlobalShortcuts()
+        registerCarbonGlobalHotKeys()
+    }
+
+    // MARK: - Setup Panels
+
+    public func initializeWindows(isAutostart: Bool) {
+        let storage = StorageManager.shared
+        let level = storage.settings.windowLevel.nsWindowLevel
+
+        let rulesSize = effectiveRulesSize()
+        let rulesOrigin = calculateInitialRulesOrigin(size: rulesSize)
+        let rPanel = FloatingPanel(
+            contentRect: NSRect(origin: rulesOrigin, size: rulesSize),
+            level: level,
+            movable: true
+        )
+        rPanel.delegate = self
+        rPanel.alphaValue = storage.settings.isGhostClickThrough ? 0.22 : storage.settings.rulesOpacity
+        rPanel.ignoresMouseEvents = storage.settings.isGhostClickThrough
+        rPanel.contentView = NSHostingView(rootView: RulesView())
+        self.rulesPanel = rPanel
+        self.isRulesVisible = false
+
+        let notesSize = effectiveNotesSize()
+        let notesOrigin = calculateInitialNotesOrigin(size: notesSize)
+        let nPanel = FloatingPanel(
+            contentRect: NSRect(origin: notesOrigin, size: notesSize),
+            level: level,
+            movable: true
+        )
+        nPanel.delegate = self
+        nPanel.alphaValue = storage.settings.isGhostClickThrough ? 0.22 : storage.settings.notesOpacity
+        nPanel.ignoresMouseEvents = storage.settings.isGhostClickThrough
+        nPanel.contentView = NSHostingView(rootView: NotesView())
+        self.notesPanel = nPanel
+        nPanel.orderFrontRegardless()
+        self.isNotesVisible = true
+
+        let tSize = FocusTimerManager.shared.isCompactPill ? compactTimerPillSize : standardTimerSize
+        let tOrigin = calculateInitialTimerOrigin(size: tSize)
+        let tPanel = FloatingPanel(
+            contentRect: NSRect(origin: tOrigin, size: tSize),
+            level: level,
+            movable: true
+        )
+        tPanel.delegate = self
+        tPanel.alphaValue = storage.settings.notesOpacity
+        tPanel.contentView = NSHostingView(rootView: FocusTimerHUDView())
+        self.timerPanel = tPanel
+        self.isTimerHUDVisible = false
+    }
+
+    // MARK: - Instant Bloknot Summoner (Option + Space OR Cmd + Shift + B)
+
+    public func SummonNotebookViaShortcut() {
+        let storage = StorageManager.shared
+        if storage.settings.isNotesCollapsed {
+            storage.settings.isNotesCollapsed = false
+            storage.saveSettings()
+            updateNotesPanelFrame(animated: true)
+        }
+        isStealthHidden = false
+        requestedMainTab = .notebook
+        showNotesPanel(focusInput: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            if let tv = NotebookManager.shared.activeTextView {
+                tv.window?.makeFirstResponder(tv)
+            }
+        }
+    }
+
+    // MARK: - Zen Timer Mode Transitions
+
+    public func enterZenTimerMode() {
+        let timerCfg = FocusTimerManager.shared.config
+        NotebookManager.shared.flushPendingSaveImmediately()
+
+        preTimerNotesVisible = isNotesVisible
+        preTimerRulesVisible = isRulesVisible
+
+        if timerCfg.hideTasksWhenTimerStarts {
+            notesPanel?.orderOut(nil)
+            isNotesVisible = false
+        }
+
+        if timerCfg.adaptiveRPAWhenTimerStarts {
+            rulesPanel?.orderOut(nil)
+            isRulesVisible = false
+        }
+
+        if let tPanel = timerPanel {
+            let targetSize = FocusTimerManager.shared.isCompactPill ? compactTimerPillSize : standardTimerSize
+            let origin = calculateInitialTimerOrigin(size: targetSize)
+            tPanel.setFrame(NSRect(origin: origin, size: targetSize), display: true, animate: true)
+            tPanel.level = StorageManager.shared.settings.windowLevel.nsWindowLevel
+            tPanel.orderFrontRegardless()
+            isTimerHUDVisible = true
+        }
+        DevChannelManager.shared.silentMemoryTrim()
+    }
+
+    public func exitZenTimerMode() {
+        timerPanel?.orderOut(nil)
+        isTimerHUDVisible = false
+
+        if preTimerNotesVisible {
+            showNotesPanel(focusInput: false)
+        }
+        if preTimerRulesVisible {
+            showRulesPanel()
+        }
+    }
+
+    public func setTimerCompactPill(_ compact: Bool) {
+        FocusTimerManager.shared.isCompactPill = compact
+        guard let tPanel = timerPanel else { return }
+        let currentTopRight = NSPoint(x: tPanel.frame.maxX, y: tPanel.frame.maxY)
+        let newSize = compact ? compactTimerPillSize : standardTimerSize
+        let newOrigin = NSPoint(x: currentTopRight.x - newSize.width, y: currentTopRight.y - newSize.height)
+        tPanel.setFrame(NSRect(origin: newOrigin, size: newSize), display: true, animate: true)
+    }
+
+    // MARK: - Morning Startup Prompt
+
+    public func showMorningPrompt() {
+        if let existing = morningPromptPanel {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let promptSize = NSSize(width: 430, height: 245)
+        let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let origin = NSPoint(
+            x: screenFrame.midX - promptSize.width / 2,
+            y: screenFrame.midY - promptSize.height / 2
+        )
+
+        let pPanel = FloatingPanel(
+            contentRect: NSRect(origin: origin, size: promptSize),
+            level: .modalPanel,
+            movable: true
+        )
+        pPanel.contentView = NSHostingView(
+            rootView: MorningPromptView(
+                onYes: { [weak self] in
+                    guard let self = self else { return }
+                    StorageManager.shared.settings.lastPromptDate = TaskItem.todayString()
+                    StorageManager.shared.saveSettings()
+                    self.morningPromptPanel?.orderOut(nil)
+                    self.morningPromptPanel = nil
+                    self.showNotesPanel(focusInput: true)
+                },
+                onNo: { [weak self] in
+                    guard let self = self else { return }
+                    StorageManager.shared.settings.lastPromptDate = TaskItem.todayString()
+                    StorageManager.shared.saveSettings()
+                    self.morningPromptPanel?.orderOut(nil)
+                    self.morningPromptPanel = nil
+                    self.hideNotesPanel()
+                }
+            )
+        )
+        self.morningPromptPanel = pPanel
+        pPanel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // MARK: - Positioning & Sizing
+
+    private func effectiveRulesSize() -> NSSize {
+        let s = StorageManager.shared.settings
+        let width = CGFloat(s.rulesWidth)
+        let height = s.isRulesCollapsed ? collapsedHeaderHeight : CGFloat(s.rulesHeight)
+        return NSSize(width: width, height: height)
+    }
+
+    private func effectiveNotesSize() -> NSSize {
+        let s = StorageManager.shared.settings
+        let width = CGFloat(s.notesWidth)
+        let height = s.isNotesCollapsed ? collapsedHeaderHeight : CGFloat(s.notesHeight)
+        return NSSize(width: width, height: height)
+    }
+
+    private func calculateInitialRulesOrigin(size: NSSize) -> NSPoint {
+        let s = StorageManager.shared.settings
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return NSPoint(x: 80, y: 80)
+        }
+        let visible = screen.visibleFrame
+        if let rx = s.rulesOriginX, let ry = s.rulesOriginY {
+            let clampedX = max(visible.minX + 8, min(CGFloat(rx), visible.maxX - size.width - 8))
+            let clampedY = max(visible.minY + 8, min(CGFloat(ry), visible.maxY - size.height - 8))
+            return NSPoint(x: clampedX, y: clampedY)
+        }
+        return calculateCornerOrigin(for: s.pinnedCorner, size: size)
+    }
+
+    private func calculateInitialTimerOrigin(size: NSSize) -> NSPoint {
+        let cfg = FocusTimerManager.shared.config
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return NSPoint(x: 300, y: 600)
+        }
+        let visible = screen.visibleFrame
+        if let tx = cfg.timerOriginX, let ty = cfg.timerOriginY {
+            let clampedX = max(visible.minX + 8, min(CGFloat(tx), visible.maxX - size.width - 8))
+            let clampedY = max(visible.minY + 8, min(CGFloat(ty), visible.maxY - size.height - 8))
+            return NSPoint(x: clampedX, y: clampedY)
+        }
+        return NSPoint(
+            x: visible.maxX - size.width - edgeInset,
+            y: visible.maxY - size.height - edgeInset
+        )
+    }
+
+    public func calculateCornerOrigin(for corner: CornerPosition, size: NSSize) -> NSPoint {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return NSPoint(x: 100, y: 100)
+        }
+        let visible = screen.visibleFrame
+        switch corner {
+        case .topLeft:
+            return NSPoint(x: visible.minX + edgeInset, y: visible.maxY - size.height - edgeInset)
+        case .topRight:
+            return NSPoint(x: visible.maxX - size.width - edgeInset, y: visible.maxY - size.height - edgeInset)
+        case .bottomLeft:
+            return NSPoint(x: visible.minX + edgeInset, y: visible.minY + edgeInset)
+        case .bottomRight:
+            return NSPoint(x: visible.maxX - size.width - edgeInset, y: visible.minY + edgeInset)
+        }
+    }
+
+    private func calculateInitialNotesOrigin(size: NSSize) -> NSPoint {
+        let s = StorageManager.shared.settings
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return NSPoint(x: 200, y: 200)
+        }
+        let visible = screen.visibleFrame
+
+        if let ox = s.notesOriginX, let oy = s.notesOriginY {
+            let clampedX = max(visible.minX + 10, min(CGFloat(ox), visible.maxX - size.width - 10))
+            let clampedY = max(visible.minY + 10, min(CGFloat(oy), visible.maxY - size.height - 10))
+            return NSPoint(x: clampedX, y: clampedY)
+        }
+
+        let defaultX = visible.minX + edgeInset
+        let defaultY = visible.maxY - size.height - edgeInset
+        return NSPoint(x: defaultX, y: defaultY)
+    }
+
+    public func snapRulesPanelToCorner(_ corner: CornerPosition, animated: Bool = true) {
+        let storage = StorageManager.shared
+        storage.settings.pinnedCorner = corner
+        storage.RPAResetCustomOrigin()
+        storage.saveSettings()
+
+        guard let panel = rulesPanel else { return }
+        let size = effectiveRulesSize()
+        let origin = calculateCornerOrigin(for: corner, size: size)
+        panel.setFrame(NSRect(origin: origin, size: size), display: true, animate: animated)
+    }
+
+    public func setRulesPinned(_ pinned: Bool) {
+        let storage = StorageManager.shared
+        storage.settings.isRulesPinned = pinned
+        storage.saveSettings()
+        rulesPanel?.allowBackgroundDrag = true
+        if pinned {
+            snapRulesPanelToCorner(storage.settings.pinnedCorner, animated: true)
+        }
+    }
+
+    // MARK: - Resizing & Collapse
+
+    public func applyRulesSizePreset(_ preset: HUDSizePreset) {
+        let storage = StorageManager.shared
+        let dims = preset.rulesDimensions
+        storage.settings.rulesWidth = Double(dims.width)
+        storage.settings.rulesHeight = Double(dims.height)
+        storage.settings.isRulesCollapsed = false
+        storage.saveSettings()
+        if let panel = rulesPanel {
+            let topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+            panel.setFrame(NSRect(x: topLeft.x, y: topLeft.y - dims.height, width: dims.width, height: dims.height), display: true, animate: true)
+        }
+    }
+
+    public func applyNotesSizePreset(_ preset: HUDSizePreset) {
+        let storage = StorageManager.shared
+        let dims = preset.notesDimensions
+        storage.settings.notesWidth = Double(dims.width)
+        storage.settings.notesHeight = Double(dims.height)
+        storage.settings.isNotesCollapsed = false
+        storage.saveSettings()
+        updateNotesPanelFrame(animated: true)
+    }
+
+    public func resizeRulesPanel(byDelta deltaSize: NSSize) {
+        let storage = StorageManager.shared
+        guard !storage.settings.isRulesCollapsed, let panel = rulesPanel else { return }
+        let newW = max(230, min(560, storage.settings.rulesWidth + Double(deltaSize.width)))
+        let newH = max(140, min(720, storage.settings.rulesHeight + Double(deltaSize.height)))
+        storage.settings.rulesWidth = newW
+        storage.settings.rulesHeight = newH
+
+        let currentFrame = panel.frame
+        let newOriginY = currentFrame.maxY - CGFloat(newH)
+        let newFrame = NSRect(x: currentFrame.minX, y: newOriginY, width: CGFloat(newW), height: CGFloat(newH))
+        panel.setFrame(newFrame, display: true, animate: false)
+        storage.settings.rulesOriginX = Double(newFrame.minX)
+        storage.settings.rulesOriginY = Double(newFrame.minY)
+        storage.saveSettings()
+    }
+
+    public func resizeNotesPanel(byDelta deltaSize: NSSize) {
+        let storage = StorageManager.shared
+        guard !storage.settings.isNotesCollapsed, let panel = notesPanel else { return }
+        let newW = max(350, min(840, storage.settings.notesWidth + Double(deltaSize.width)))
+        let newH = max(280, min(900, storage.settings.notesHeight + Double(deltaSize.height)))
+        storage.settings.notesWidth = newW
+        storage.settings.notesHeight = newH
+
+        let currentFrame = panel.frame
+        let newOriginY = currentFrame.maxY - CGFloat(newH)
+        let newFrame = NSRect(x: currentFrame.minX, y: newOriginY, width: CGFloat(newW), height: CGFloat(newH))
+        panel.setFrame(newFrame, display: true, animate: false)
+        storage.settings.notesOriginX = Double(newFrame.minX)
+        storage.settings.notesOriginY = Double(newFrame.minY)
+        storage.saveSettings()
+    }
+
+    public func toggleRulesCollapsed() {
+        let storage = StorageManager.shared
+        storage.settings.isRulesCollapsed.toggle()
+        storage.saveSettings()
+        if let panel = rulesPanel {
+            let currentTopLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+            let newSize = effectiveRulesSize()
+            panel.setFrame(NSRect(x: currentTopLeft.x, y: currentTopLeft.y - newSize.height, width: newSize.width, height: newSize.height), display: true, animate: true)
+        }
+    }
+
+    public func toggleNotesCollapsed() {
+        let storage = StorageManager.shared
+        storage.settings.isNotesCollapsed.toggle()
+        storage.saveSettings()
+        updateNotesPanelFrame(animated: true)
+    }
+
+    private func updateNotesPanelFrame(animated: Bool) {
+        guard let panel = notesPanel else { return }
+        let currentTopLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        let newSize = effectiveNotesSize()
+        let newOrigin = NSPoint(x: currentTopLeft.x, y: currentTopLeft.y - newSize.height)
+        panel.setFrame(NSRect(origin: newOrigin, size: newSize), display: true, animate: animated)
+    }
+
+    // MARK: - Visibility & Stealth
+
+    public func showRulesPanel() {
+        isStealthHidden = false
+        rulesPanel?.orderFrontRegardless()
+        isRulesVisible = true
+    }
+
+    public func hideRulesPanel() {
+        rulesPanel?.orderOut(nil)
+        isRulesVisible = false
+    }
+
+    public func toggleRulesPanel() {
+        if isRulesVisible { hideRulesPanel() } else { showRulesPanel() }
+    }
+
+    public func showNotesPanel(focusInput: Bool = false) {
+        isStealthHidden = false
+        notesPanel?.orderFrontRegardless()
+        isNotesVisible = true
+        if focusInput {
+            notesPanel?.focusForTextInput()
+        }
+    }
+
+    public func hideNotesPanel() {
+        NotebookManager.shared.flushPendingSaveImmediately()
+        notesPanel?.orderOut(nil)
+        isNotesVisible = false
+        DevChannelManager.shared.silentMemoryTrim()
+    }
+
+    public func toggleNotesPanel() {
+        if isNotesVisible { hideNotesPanel() } else { showNotesPanel(focusInput: false) }
+    }
+
+    public func toggleStealthHideAll() {
+        cancelSnoozeTimer()
+        if isStealthHidden {
+            isStealthHidden = false
+            if FocusTimerManager.shared.isActive {
+                timerPanel?.orderFrontRegardless()
+                isTimerHUDVisible = true
+            } else {
+                notesPanel?.orderFrontRegardless()
+                isNotesVisible = true
+            }
+        } else {
+            NotebookManager.shared.flushPendingSaveImmediately()
+            isStealthHidden = true
+            rulesPanel?.orderOut(nil)
+            notesPanel?.orderOut(nil)
+            timerPanel?.orderOut(nil)
+            isRulesVisible = false
+            isNotesVisible = false
+            isTimerHUDVisible = false
+            DevChannelManager.shared.silentMemoryTrim()
+        }
+    }
+
+    public func snoozeAllHUDs(forMinutes minutes: Int) {
+        cancelSnoozeTimer()
+        NotebookManager.shared.flushPendingSaveImmediately()
+        isStealthHidden = true
+        rulesPanel?.orderOut(nil)
+        notesPanel?.orderOut(nil)
+        timerPanel?.orderOut(nil)
+        isRulesVisible = false
+        isNotesVisible = false
+        isTimerHUDVisible = false
+        snoozeRemainingSeconds = minutes * 60
+
+        snoozeTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                if self.snoozeRemainingSeconds > 1 {
+                    self.snoozeRemainingSeconds -= 1
+                } else {
+                    self.cancelSnoozeTimer()
+                    self.isStealthHidden = false
+                    if FocusTimerManager.shared.isActive {
+                        self.timerPanel?.orderFrontRegardless()
+                        self.isTimerHUDVisible = true
+                    } else {
+                        self.notesPanel?.orderFrontRegardless()
+                        self.isNotesVisible = true
+                    }
+                }
+            }
+        }
+    }
+
+    public func cancelSnoozeTimer() {
+        snoozeTimer?.invalidate()
+        snoozeTimer = nil
+        snoozeRemainingSeconds = 0
+    }
+
+    public func toggleGhostClickThrough() {
+        let storage = StorageManager.shared
+        storage.settings.isGhostClickThrough.toggle()
+        storage.saveSettings()
+        applyWindowLayerAndOpacitySettings()
+    }
+
+    public func applyWindowLayerAndOpacitySettings() {
+        let s = StorageManager.shared.settings
+        let level = s.windowLevel.nsWindowLevel
+
+        rulesPanel?.level = level
+        notesPanel?.level = level
+        timerPanel?.level = level
+
+        rulesPanel?.alphaValue = s.isGhostClickThrough ? 0.22 : s.rulesOpacity
+        notesPanel?.alphaValue = s.isGhostClickThrough ? 0.22 : s.notesOpacity
+        timerPanel?.alphaValue = s.isGhostClickThrough ? 0.35 : max(0.85, s.notesOpacity)
+
+        rulesPanel?.ignoresMouseEvents = s.isGhostClickThrough
+        notesPanel?.ignoresMouseEvents = s.isGhostClickThrough
+        timerPanel?.ignoresMouseEvents = s.isGhostClickThrough
+
+        reassertAlwaysOnTopOrder()
+    }
+
+    public func reassertAlwaysOnTopOrder() {
+        guard !isStealthHidden else { return }
+        let level = StorageManager.shared.settings.windowLevel.nsWindowLevel
+        if isRulesVisible {
+            rulesPanel?.level = level
+            rulesPanel?.orderFrontRegardless()
+        }
+        if isNotesVisible {
+            notesPanel?.level = level
+            notesPanel?.orderFrontRegardless()
+        }
+        if isTimerHUDVisible {
+            timerPanel?.level = level
+            timerPanel?.orderFrontRegardless()
+        }
+    }
+
+    // MARK: - Window Delegate
+
+    public func windowDidMove(_ notification: Notification) {
+        guard let win = notification.object as? NSWindow else { return }
+        let storage = StorageManager.shared
+        if win == notesPanel {
+            storage.settings.notesOriginX = Double(win.frame.minX)
+            storage.settings.notesOriginY = Double(win.frame.minY)
+            storage.saveSettings()
+        } else if win == rulesPanel {
+            storage.settings.rulesOriginX = Double(win.frame.minX)
+            storage.settings.rulesOriginY = Double(win.frame.minY)
+            storage.saveSettings()
+        } else if win == timerPanel {
+            FocusTimerManager.shared.config.timerOriginX = Double(win.frame.minX)
+            FocusTimerManager.shared.config.timerOriginY = Double(win.frame.minY)
+            FocusTimerManager.shared.saveConfig()
+        }
+    }
+
+    public func windowDidEndLiveResize(_ notification: Notification) {
+        guard let win = notification.object as? NSWindow else { return }
+        let storage = StorageManager.shared
+        if win == rulesPanel && !storage.settings.isRulesCollapsed {
+            storage.settings.rulesWidth = Double(win.frame.width)
+            storage.settings.rulesHeight = Double(win.frame.height)
+            storage.settings.rulesOriginX = Double(win.frame.minX)
+            storage.settings.rulesOriginY = Double(win.frame.minY)
+            storage.saveSettings()
+        } else if win == notesPanel && !storage.settings.isNotesCollapsed {
+            storage.settings.notesWidth = Double(win.frame.width)
+            storage.settings.notesHeight = Double(win.frame.height)
+            storage.settings.notesOriginX = Double(win.frame.minX)
+            storage.settings.notesOriginY = Double(win.frame.minY)
+            storage.saveSettings()
+        }
+    }
+
+    private func setupNotifications() {
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.activeSpaceDidChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reassertAlwaysOnTopOrder() }
+            .store(in: &cancellables)
+
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reassertAlwaysOnTopOrder() }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - System-Wide Carbon Global HotKey Registration (Option + Space & Cmd + Shift + B)
+
+    private func registerCarbonGlobalHotKeys() {
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            focusCornerHotKeyCallback,
+            1,
+            &eventType,
+            nil,
+            &hotKeyEventHandler
+        )
+
+        // 1. Option + Space (keyCode 49 = Space, optionKey) -> Instant Bloknot!
+        let optSpaceID = EventHotKeyID(signature: OSType(0x46434E42), id: 1)
+        RegisterEventHotKey(
+            UInt32(kVK_Space),
+            UInt32(optionKey),
+            optSpaceID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefOptSpace
+        )
+
+        // 2. Cmd + Shift + B (keyCode 11 = B) -> Instant Bloknot!
+        let cmdShiftBID = EventHotKeyID(signature: OSType(0x46434E42), id: 2)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_B),
+            UInt32(cmdKey | shiftKey),
+            cmdShiftBID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefCmdShiftB
+        )
+    }
+
+    private func setupGlobalShortcuts() {
+        let handler: (NSEvent) -> Void = { [weak self] event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if flags == [.option] && event.keyCode == 49 {
+                Task { @MainActor in
+                    self?.SummonNotebookViaShortcut()
+                }
+                return
+            }
+            guard flags == [.command, .shift],
+                  let chars = event.charactersIgnoringModifiers?.lowercased() else { return }
+
+            Task { @MainActor in
+                switch chars {
+                case "b":
+                    self?.SummonNotebookViaShortcut()
+                case "f":
+                    self?.toggleNotesPanel()
+                case "r":
+                    self?.toggleRulesPanel()
+                case "t":
+                    if FocusTimerManager.shared.isActive {
+                        FocusTimerManager.shared.togglePause()
+                    } else {
+                        FocusTimerManager.shared.startSingular()
+                    }
+                case "h":
+                    self?.toggleStealthHideAll()
+                default:
+                    break
+                }
+            }
+        }
+
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: handler)
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if flags == [.option] && event.keyCode == 49 {
+                handler(event)
+                return nil
+            }
+            if flags == [.command, .shift],
+               let chars = event.charactersIgnoringModifiers?.lowercased(),
+               ["b", "f", "r", "t", "h"].contains(chars) {
+                handler(event)
+                return nil
+            }
+            return event
+        }
+    }
+}

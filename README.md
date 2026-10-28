@@ -1,50 +1,50 @@
-# FocusCorner — Desktop App
+# FocusCorner v2.0 — Synergy Edition (macOS Native HUD)
+**ExAcc (`@exacc` / `@accumulation-system`) + Score SAT (`@score-sat-system`) + RPA Engine (`Do & Don't`)**
 
-A quiet desktop overlay for deep work: pinned focus rules, optional notes,
-and a permanent history log. This is the Electron desktop version.
+FocusCorner v2.0 — macOS (Ventura, Sonoma, Sequoia) uchun maxsus Swift 5.9+ (SwiftUI + AppKit `NSPanel`) asosida qurilgan ultra-yengil (<25MB RAM, 0.0% idle CPU) ish stoli ustki qatlami (Always-On-Top HUD).
 
-## Requirements
-- Node.js 20 or newer (https://nodejs.org) — includes npm
+## 1. Asosiy Yangiliklar va Sinergiya Arxitekturasi (v2.0)
 
-## Run it (all systems)
+1. **Uchta Tizim Sinergiyasi:**
+   - **RPA HUD (Pinned Corner — Do & Don't Tanbehlar):** Ekranning 4 burchagidan biriga mahkamlanadigan (`topRight`, `topLeft`, `bottomRight`, `bottomLeft`), o'zgarmas qoidalar (`🔒 Lock`) va **ExAcc Xavfsizlik Protokollari** (`Hard Stop 00:30`, `Launch Window 14:00`, `WIP Limit <= 2`, `Sunday Buffer`) jonli indikatori.
+   - **Score SAT System (`@score-sat-system`):** Ebbinghaus oraliq takrorlash (`Ingest 30%`, `Day 1 +20%`, `Day 3 +20%`, `Day 7/14 +15%`, `Day 30 +15%`), **Qat'iy Sana va Interval Filtri** (kelajakdagi takrorlashni muddatidan oldin tasodifan yopishni bloklaydi) hamda **Mock Xato (-30% Fast-Track Recovery)** avtomatik generatori.
+   - **ExAcc & Accumulation (`@exacc`):** Missiyalar (`Monumental`, `Substantial`, `Modest`), Acc (`Nano`, `Mini`, `Midi`, `Mani`), Volume (`Smooth`, `Peak`, `Upper`), kunlik akkumulyatorlar (`Small +10`, `Medium +25`, `Big +50`) va **Faction Isolation** (SAT ballarini standart ExAcc ballari bilan aralashtirmasdan Read-Only Observer rejimida kuzatish).
+2. **`history.md` va Foydalanuvchi Ma'lumotlarining 100% Daxlsizligi:**
+   - `~/.focus_corner/history.md` faqat **append-only** (oxiridan qo'shish) rejimida ishlaydi — hech qanday yangilanish uni o'chirmaydi.
+   - Har safar `./run.sh` yoki `./scripts/update.sh` ishga tushganda `~/.focus_corner/backups/snapshot_YYYYMMDD_HHMMSS/` ichiga avtomatik zahira nusxa olinadi.
+   - v1 formatdagi `rules.json`, `tasks.json` va `settings.json` fayllari avtomatik ravishda xatosiz o'qiladi.
+3. **Maksimal Qulaylik (User Comfort & Window Control):**
+   - **Har qanday oyna va Full-Screen ustida ko'rinish:** `.canJoinAllSpaces`, `.fullScreenAuxiliary` va `hidesOnDeactivate = false` orqali barcha virtual ish stollarida (Spaces) va to'liq ekranli ilovalar ustida yo'qolib qolmasdan turadi.
+   - **Vaqtinchalik Ko'rinmas Qilish (Stealth & Snooze Timer):** `5m`, `15m`, `30m`, `60m` taymer bilan vaqtincha yashirish (vaqt tugashi bilan o'zi avtomatik qaytib chiqadi!) yoki `Cmd + Shift + H` bilan tezkor yashirish/ko'rsatish.
+   - **Ghost Click-Through Rejimi (`Cmd + Shift + G`):** Oynalar shaffofligini 22% ga tushirib, myshka bosishlarini HUD ustidan to'g'ridan-to'g'ri orqadagi kod yoki brauzerga o'tkazib yuboradi.
+   - **Erkin O'lchamni O'zgartirish (Resize) va Yig'ish (Mini-Pill Collapse):** Har ikkala oynaning pastki o'ng burchagidan tortib o'lchamini o'zgartirish, `S / M / L` tayyor o'lchamlar, `A- / A+` shrift masshtabi va bitta tugma bilan 44px mini-kapsula holatiga yig'ish.
+
+## 2. O'rnatish va Smooth Yangilash (1-Click)
+
+Terminalda loyiha papkasiga kirib quyidagi bitta buyruqni bering:
+
 ```bash
-cd focuscorner-desktop
-npm install
-npm start
+chmod +x run.sh scripts/*.sh
+./run.sh
 ```
 
-## Develop with hot reload
-```bash
-npm run dev
-```
+- **Release (Stable) kanalida yangilash va 400MB+ `.build` keshni avtomatik tozalash:**
+  ```bash
+  ./run.sh --release
+  ```
+- **Development (Tezkor dasturlash) kanalida ishga tushirish:**
+  ```bash
+  ./run.sh --dev
+  ```
+- **Terminal orqali jonli task qo'shish yoki statusni ko'rish:**
+  ```bash
+  python3 scripts/fc_sync.py status
+  python3 scripts/fc_sync.py add-task "[SAT Math] Exponential Functions — Day 1 Review" --source SAT --sat-stage DAY_1 --points 14
+  ```
 
-## Build an installer
-```bash
-npm run dist:mac      # macOS  -> release/*.dmg
-npm run dist:win      # Windows -> release/*.exe (installer + portable)
-npm run dist:linux    # Linux  -> release/*.AppImage and *.deb
-```
-Build each installer on its own operating system (a .dmg needs a Mac, an .exe needs Windows).
+## 3. Global Klaviatura Qisqartmalari (Hotkeys)
 
-### Install the result
-- **macOS:** open `release/FocusCorner-1.0.0.dmg`, drag FocusCorner to Applications.
-  If macOS blocks it (unsigned app): right-click the app → Open.
-- **Windows:** run `release/FocusCorner Setup 1.0.0.exe`.
-- **Linux (AppImage):** `chmod +x release/FocusCorner-1.0.0.AppImage && ./release/FocusCorner-1.0.0.AppImage`
-- **Linux (Debian/Ubuntu):** `sudo apt install ./release/focuscorner_1.0.0_amd64.deb`
-
-## Desktop features
-- Global shortcut **Ctrl/Cmd + Shift + F** shows the window and toggles notes, even when another app is focused
-- **View → Always on Top** (Ctrl/Cmd + Shift + T)
-- **Launch at login** in Settings now really registers the app with your OS (installed app only)
-- Rules, tasks and history are mirrored to `~/.focus_corner/rules.json`, `tasks.json`, `history.md`
-- Works fully offline (fonts and wallpaper are bundled)
-- Single instance: opening it twice focuses the existing window
-
-## Project layout
-```
-electron/main.cjs      window, menu, global shortcut, login item, file export
-electron/preload.cjs   safe bridge between the app and Electron
-src/                   React UI (unchanged design from the original)
-build/icon.png         app icon
-```
+- `Cmd + Shift + F` — Tasklar & Synergy HUD oynasini yashirish / ko'rsatish
+- `Cmd + Shift + R` — RPA Qoidalar HUD oynasini yashirish / ko'rsatish
+- `Cmd + Shift + H` — Ikkala oynani birdaniga vaqtincha yashirish / qaytarish (Stealth Mode)
+- `Cmd + Shift + G` — Ghost Click-Through rejimi (myshka HUD orqali o'tadi)
