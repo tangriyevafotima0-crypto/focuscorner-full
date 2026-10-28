@@ -1,3 +1,0 @@
-📖 Journaling & Falsafiy Fikrlar
-
-• Chuqur mulohazalar, iqtiboslar va kundalik yozuvlar...
