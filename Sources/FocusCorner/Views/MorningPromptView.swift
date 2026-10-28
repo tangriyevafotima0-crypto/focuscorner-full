@@ -27,12 +27,10 @@ public struct MorningPromptView: View {
 
             VStack(spacing: 14) {
                 HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.cyan)
+                    FocusCornerLogoBadge(size: 22)
                     Text("FocusCorner Synergy — Kunlik Start")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(.white.opacity(0.92))
                 }
 
                 Text("Bugun yangi tasklar bormi?")
@@ -41,13 +39,13 @@ public struct MorningPromptView: View {
 
                 HStack(spacing: 12) {
                     Label("SAT: \(storage.satTracker.totalSATScore)/1600", systemImage: "graduationcap.fill")
-                        .font(.system(size: 11.5, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.cyan)
                     Label("ExAcc: \(storage.formatPoints(storage.exAcc.totalStandardCharge))", systemImage: "bolt.fill")
-                        .font(.system(size: 11.5, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.orange)
-                    Label("Bugungi: \(dueTodayCount) ta", systemImage: "checklist")
-                        .font(.system(size: 11.5, weight: .semibold))
+                    Label("RPA: \(storage.currentGuNoErrorScore)/20%", systemImage: "shield.lefthalf.filled")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.green)
                 }
                 .padding(.horizontal, 12)

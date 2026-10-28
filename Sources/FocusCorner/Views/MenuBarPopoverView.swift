@@ -22,10 +22,10 @@ public struct MenuBarPopoverView: View {
             // 1. Live Focus Timer Control Card (Singular & Exam)
             timerQuickControlSection
 
-            // 2. Window Visibility Cards (Tasks & RPA)
+            // 2. Window Visibility Cards (Tasks, Bloknot, Terminal)
             HStack(spacing: 8) {
                 hudToggleCard(
-                    title: "Vazifalar & Timer",
+                    title: "Vazifalar & RPA",
                     subtitle: "\(storage.tasks.filter { !$0.isCompleted }.count) ta faol",
                     icon: "checklist",
                     isActive: windowController.isNotesVisible,
@@ -127,22 +127,15 @@ public struct MenuBarPopoverView: View {
     }
 
     private var headerSection: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 30, height: 30)
-                Image(systemName: "timer")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
-            }
+        HStack(spacing: 9) {
+            FocusCornerLogoBadge(size: 30)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("FocusCorner v5.2")
+            VStack(alignment: .leading, spacing: 1.5) {
+                Text("FocusCorner v6.5")
                     .font(.system(size: 13, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
-                Text("SAT: \(storage.satTracker.totalSATScore)/1600 • ExAcc: \(storage.formatPoints(storage.exAcc.totalStandardCharge))")
-                    .font(.system(size: 10.5, weight: .semibold))
+                Text("SAT: \(storage.satTracker.totalSATScore) • ExAcc: \(storage.formatPoints(storage.exAcc.totalStandardCharge)) • RPA: \(storage.currentGuNoErrorScore)/20%")
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.cyan)
             }
 
@@ -304,7 +297,6 @@ public struct MenuBarPopoverView: View {
 
             Spacer()
 
-            // Subtle Developer / Maintenance Menu
             Menu {
                 Button("🛡 To'liq Snapshot Backup Olish") {
                     _ = BackupManager.shared.createSnapshot(reason: "MenuBar Backup", silent: false)

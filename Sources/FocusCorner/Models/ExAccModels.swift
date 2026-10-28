@@ -35,8 +35,6 @@ public struct ExAccMission: Identifiable, Codable, Equatable {
     public var tier: MissionTier
     public var accType: AccType
     public var volume: VolumeType
-    /// True if this mission is managed by an independent Faction skill (e.g. Score SAT System)
-    /// Per ExAcc Faction Isolation Rule: ExAcc observes Faction missions in Read-Only mode and does NOT mix standard accumulator points into Faction scores.
     public var isFaction: Bool
     public var factionName: String?
     public var startDate: String
@@ -86,7 +84,7 @@ public struct ExAccState: Codable, Equatable {
     public var lastAuditDate: String
 
     public init(
-        totalStandardCharge: Double = 170,
+        totalStandardCharge: Double = 230,
         missions: [ExAccMission] = ExAccState.defaultMissions,
         lastAuditDate: String = TaskItem.todayString()
     ) {
@@ -106,24 +104,24 @@ public struct ExAccState: Codable, Equatable {
                 factionName: "score-sat-system",
                 startDate: "2026-10-10",
                 deadlineDate: "2026-11-08",
-                nextCheckInDate: "2026-10-16",
-                earnedCharge: 654,
+                nextCheckInDate: "2026-10-24",
+                earnedCharge: 791,
                 targetCharge: 1550,
                 isAtRisk: false,
                 isActive: true
             ),
             ExAccMission(
-                title: "FocusCorner v2 macOS Native Synergy App & Deep Work",
-                tier: .modest,
-                accType: .mini,
+                title: "Investitsiya Midi Acc & Gu Rank 1 Initial",
+                tier: .substantial,
+                accType: .midi,
                 volume: .peak,
                 isFaction: false,
                 factionName: nil,
-                startDate: "2026-10-08",
-                deadlineDate: "2026-10-18",
-                nextCheckInDate: "2026-10-16",
-                earnedCharge: 170,
-                targetCharge: 250,
+                startDate: "2026-10-18",
+                deadlineDate: "2026-11-16",
+                nextCheckInDate: "2026-10-24",
+                earnedCharge: 230,
+                targetCharge: 500,
                 isAtRisk: false,
                 isActive: true
             )
@@ -170,7 +168,7 @@ public struct SafetyProtocolMonitor {
         } else if isLaunchWindowWarning {
             banner = "🚀 LAUNCH WINDOW (14:00) — Kunning birinchi og'ir vazifasini boshlang!"
         } else {
-            banner = "⚡ ExAcc & Score SAT Protokollari Me'yorida"
+            banner = "⚡ ExAcc, RPA & Score SAT Protokollari Me'yorida"
         }
 
         return (isHardStop, isHardStopApproaching, isSunday, isLaunchWindowWarning, banner)

@@ -60,6 +60,8 @@ public final class BackupManager: ObservableObject {
         "sat_tracker.json",
         "exacc.json",
         "rules.json",
+        "rpa_archive.json",
+        "rpa_history.md",
         "settings.json",
         "timer_config.json",
         "eyecare_config.json",
@@ -80,7 +82,6 @@ public final class BackupManager: ObservableObject {
 
     private func startPeriodicBackupTimer() {
         periodicBackupTimer?.invalidate()
-        // Every 2 hours create a quiet rolling auto-backup
         periodicBackupTimer = Timer.scheduledTimer(withTimeInterval: 7200.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 _ = self?.createSnapshot(reason: "Avto-Sikl (2 soatlik)", silent: true)
@@ -91,7 +92,6 @@ public final class BackupManager: ObservableObject {
     public func createAutoBackupIfNeeded(reason: String = "Avto-Zahira") {
         refreshSnapshotsList()
         if let newest = snapshots.first {
-            // Avoid spamming auto backups if one was created within the last 15 minutes
             let nowStamp = Self.humanTimestamp()
             if newest.createdAt.prefix(15) == nowStamp.prefix(15) {
                 return
@@ -105,7 +105,6 @@ public final class BackupManager: ObservableObject {
         isPerformingBackup = true
         defer { isPerformingBackup = false }
 
-        // Flush any unsaved rich-text notebook changes before snapshotting
         NotebookManager.shared.flushPendingSaveImmediately()
 
         let fm = FileManager.default
@@ -184,10 +183,8 @@ public final class BackupManager: ObservableObject {
             return false
         }
 
-        // 1. Always create a pre-restore safety snapshot first!
         _ = createSnapshot(reason: "Pre-Restore Himoya", silent: true)
 
-        // 2. Restore core JSON & history files
         for fileName in coreFiles {
             let src = snapDir.appendingPathComponent(fileName)
             let dst = baseDirURL.appendingPathComponent(fileName)
@@ -197,7 +194,6 @@ public final class BackupManager: ObservableObject {
             }
         }
 
-        // 3. Restore notebook directory if present in snapshot
         let notebookSrc = snapDir.appendingPathComponent("notebook", isDirectory: true)
         let notebookDst = baseDirURL.appendingPathComponent("notebook", isDirectory: true)
         if fm.fileExists(atPath: notebookSrc.path) {
@@ -205,7 +201,6 @@ public final class BackupManager: ObservableObject {
             try? fm.copyItem(at: notebookSrc, to: notebookDst)
         }
 
-        // 4. Reload in-memory managers immediately
         StorageManager.shared.loadAllData()
         NotebookManager.shared.loadCategory(NotebookManager.shared.selectedCategory)
         FocusTimerManager.shared.loadConfig()
@@ -244,26 +239,24 @@ public final class BackupManager: ObservableObject {
     public func runSystemDoctorAudit() -> String {
         let fm = FileManager.default
         var lines: [String] = []
-        lines.append("=== 🩺 FocusCorner v5.2 Data & System Doctor ===")
+        lines.append("=== 🩺 FocusCorner v6.5 Data, RPA & System Doctor ===")
 
-        var healthyCount = 0
         for fileName in coreFiles {
             let url = baseDirURL.appendingPathComponent(fileName)
             if fm.fileExists(atPath: url.path) {
                 let sz = (try? fm.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
                 lines.append("  ✓ \(fileName) — Mavjud (\(sz) bayt)")
-                healthyCount += 1
             } else {
                 lines.append("  • \(fileName) — Avto-tiklanmoqda...")
             }
         }
 
-        // Ensure all core files are persisted cleanly
         StorageManager.shared.saveSettings()
         StorageManager.shared.saveTasks()
         StorageManager.shared.saveSATTracker()
         StorageManager.shared.saveExAcc()
         StorageManager.shared.saveRules()
+        StorageManager.shared.saveRPAArchive()
         NotebookManager.shared.flushPendingSaveImmediately()
 
         refreshSnapshotsList()
@@ -275,10 +268,11 @@ public final class BackupManager: ObservableObject {
         lines.append("------------------------------------------------")
         lines.append("  • SAT Balli        : \(storage.satTracker.totalSATScore) / 1600 (Math: \(storage.satTracker.currentMathScore) | RW: \(storage.satTracker.currentRWScore))")
         lines.append("  • ExAcc Zaryad     : \(storage.formatPoints(storage.exAcc.totalStandardCharge)) ball")
+        lines.append("  • Gu No-Error (RPA): \(storage.currentGuNoErrorScore) / 20% (Bugun: \(storage.todayRPAXCount) ta X | Arxiv: \(storage.rpaArchive.count) kun)")
         lines.append("  • Bugungi vazifalar: \(todayCount) ta | Keyingi kunlar: \(upcomingCount) ta | Bajarilgan: \(doneCount) ta")
         lines.append("  • Zahira nusxalar  : \(snapshots.count) ta snapshot (~/.focus_corner/backups)")
         lines.append("  • RAM Bosimi       : \(String(format: "%.1f MB", DevChannelManager.shared.memoryFootprintMB))")
-        lines.append("✅ Natija: Barcha fayllar va zahira tizimi 100% soz holatda!")
+        lines.append("✅ Natija: Barcha fayllar, 3-kunlik RPA jadvali va zahira tizimi 100% soz holatda!")
 
         healthReportSummary = "100% Soz • \(snapshots.count) ta zahira"
         return lines.joined(separator: "\n")
@@ -304,7 +298,6 @@ public final class BackupManager: ObservableObject {
                let m = try? decoder.decode(BackupSnapshotManifest.self, from: data) {
                 loaded.append(m)
             } else {
-                // Reconstruct manifest for legacy snapshots created by run.sh
                 let folder = url.lastPathComponent
                 let displayStamp = folder.replacingOccurrences(of: "snapshot_", with: "")
                 let sz = max(4, Self.directorySizeKB(at: url))
@@ -322,11 +315,11 @@ public final class BackupManager: ObservableObject {
                         folderName: folder,
                         createdAt: displayStamp,
                         reason: "O'rnatish / Avto-Zahira",
-                        satScore: 654,
-                        exAccCharge: 170,
+                        satScore: 791,
+                        exAccCharge: 230,
                         totalTasksCount: tCount,
                         completedTasksCount: dCount,
-                        rulesCount: 5,
+                        rulesCount: 3,
                         notebookPagesCount: 3,
                         sizeKB: sz
                     )

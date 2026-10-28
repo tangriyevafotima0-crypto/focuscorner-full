@@ -67,7 +67,7 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
     private var hotKeyEventHandler: EventHandlerRef?
 
     private let edgeInset: CGFloat = 22.0
-    private let collapsedHeaderHeight: CGFloat = 44.0
+    public let collapsedHeaderHeight: CGFloat = 46.0
     private let standardTimerSize = NSSize(width: 336, height: 134)
     private let compactTimerPillSize = NSSize(width: 232, height: 46)
 
@@ -101,8 +101,11 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
         }
         guard let panel = notesPanel else { return }
         if panel.contentView == nil {
-            panel.contentView = NSHostingView(rootView: NotesView())
+            panel.contentView = FixedSizeHostingView(rootView: NotesView())
         }
+        panel.minSize = NSSize(width: 240, height: collapsedHeaderHeight)
+        panel.contentMinSize = NSSize(width: 240, height: collapsedHeaderHeight)
+        panel.setFrame(NSRect(origin: panel.frame.origin, size: notesSize), display: true, animate: false)
         panel.alphaValue = storage.settings.isGhostClickThrough ? 0.22 : storage.settings.notesOpacity
         panel.ignoresMouseEvents = storage.settings.isGhostClickThrough
         panel.level = level
@@ -110,10 +113,11 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
         self.isNotesVisible = true
     }
 
-    // MARK: - Harmless Non-Activating EyeCare Toast Panel (When Main Window is Hidden)
+    // MARK: - Harmless Non-Activating EyeCare Toast Panel
 
     public func showEyeCareToastPanel() {
-        // If main notesPanel is already visible, EyeCareBannerHUDView renders inline at the top of NotesView (0 extra window RAM!)
+        // If main notesPanel is visible AND expanded, EyeCareBannerHUDView renders cleanly inside NotesView.
+        // If notesPanel is collapsed or hidden, show a standalone floating toast banner so collapsed bar never stretches!
         if isNotesVisible && !StorageManager.shared.settings.isNotesCollapsed {
             return
         }
@@ -135,19 +139,54 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
             self.eyeCarePanel = ePanel
         }
         guard let panel = eyeCarePanel else { return }
-        panel.contentView = NSHostingView(rootView: EyeCareBannerHUDView())
+        panel.contentView = FixedSizeHostingView(rootView: EyeCareBannerHUDView())
         panel.setFrame(NSRect(origin: origin, size: bannerSize), display: true, animate: true)
         panel.orderFrontRegardless()
+        enforceCollapsedHeightIfNeeded()
     }
 
     public func hideEyeCareToastPanel() {
         eyeCarePanel?.orderOut(nil)
         eyeCarePanel?.contentView = nil
         eyeCarePanel = nil
+        enforceCollapsedHeightIfNeeded()
         DevChannelManager.shared.silentMemoryTrim()
     }
 
-    // MARK: - Instant Bloknot Summoner (Option + Space OR Cmd + Shift + B)
+    /// Guarantees that if the user is in collapsed mini-bar mode, the window height stays strictly 46pt with zero top black gap.
+    public func enforceCollapsedHeightIfNeeded() {
+        let storage = StorageManager.shared
+        if storage.settings.isNotesCollapsed, let panel = notesPanel {
+            let targetW = max(460, CGFloat(storage.settings.notesWidth))
+            let targetH = collapsedHeaderHeight
+            if abs(panel.frame.height - targetH) > 1.0 || abs(panel.frame.width - targetW) > 1.0 {
+                let topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+                panel.minSize = NSSize(width: 240, height: targetH)
+                panel.contentMinSize = NSSize(width: 240, height: targetH)
+                panel.setFrame(
+                    NSRect(x: topLeft.x, y: topLeft.y - targetH, width: targetW, height: targetH),
+                    display: true,
+                    animate: false
+                )
+            }
+        }
+        if storage.settings.isRulesCollapsed, let rPanel = rulesPanel {
+            let targetW = max(320, CGFloat(storage.settings.rulesWidth))
+            let targetH = collapsedHeaderHeight
+            if abs(rPanel.frame.height - targetH) > 1.0 {
+                let topLeft = NSPoint(x: rPanel.frame.minX, y: rPanel.frame.maxY)
+                rPanel.minSize = NSSize(width: 240, height: targetH)
+                rPanel.contentMinSize = NSSize(width: 240, height: targetH)
+                rPanel.setFrame(
+                    NSRect(x: topLeft.x, y: topLeft.y - targetH, width: targetW, height: targetH),
+                    display: true,
+                    animate: false
+                )
+            }
+        }
+    }
+
+    // MARK: - Instant Bloknot & Terminal Summoners
 
     public func SummonTerminalViaShortcut() {
         let storage = StorageManager.shared
@@ -178,7 +217,7 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
         }
     }
 
-    // MARK: - Zen Timer Mode Transitions (Releases Hidden Window Buffers!)
+    // MARK: - Zen Timer Mode Transitions
 
     public func enterZenTimerMode() {
         let timerCfg = FocusTimerManager.shared.config
@@ -189,7 +228,7 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
 
         if timerCfg.hideTasksWhenTimerStarts {
             notesPanel?.orderOut(nil)
-            notesPanel?.contentView = nil // Free main SwiftUI hierarchy while in Zen Timer mode!
+            notesPanel?.contentView = nil
             isNotesVisible = false
         }
 
@@ -211,7 +250,7 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
             self.timerPanel = tPanel
         }
         if let tPanel = timerPanel {
-            tPanel.contentView = NSHostingView(rootView: FocusTimerHUDView())
+            tPanel.contentView = FixedSizeHostingView(rootView: FocusTimerHUDView())
             tPanel.alphaValue = StorageManager.shared.settings.notesOpacity
             tPanel.setFrame(NSRect(origin: origin, size: targetSize), display: true, animate: true)
             tPanel.level = level
@@ -266,7 +305,7 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
             level: .modalPanel,
             movable: true
         )
-        pPanel.contentView = NSHostingView(
+        pPanel.contentView = FixedSizeHostingView(
             rootView: MorningPromptView(
                 onYes: { [weak self] in
                     guard let self = self else { return }
@@ -297,16 +336,24 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
 
     private func effectiveRulesSize() -> NSSize {
         let s = StorageManager.shared.settings
-        let width = CGFloat(s.rulesWidth)
-        let height = s.isRulesCollapsed ? collapsedHeaderHeight : CGFloat(s.rulesHeight)
+        let width = max(360, CGFloat(s.rulesWidth))
+        let height = s.isRulesCollapsed ? collapsedHeaderHeight : max(210, CGFloat(s.rulesHeight))
         return NSSize(width: width, height: height)
     }
 
     private func effectiveNotesSize() -> NSSize {
         let s = StorageManager.shared.settings
-        let width = CGFloat(s.notesWidth)
-        let height = s.isNotesCollapsed ? collapsedHeaderHeight : CGFloat(s.notesHeight)
+        let width = max(460, CGFloat(s.notesWidth))
+        let height = s.isNotesCollapsed ? collapsedHeaderHeight : max(480, CGFloat(s.notesHeight))
         return NSSize(width: width, height: height)
+    }
+
+    public func expandNotesPanel(animated: Bool = true) {
+        let storage = StorageManager.shared
+        guard storage.settings.isNotesCollapsed else { return }
+        storage.settings.isNotesCollapsed = false
+        storage.saveSettings()
+        updateNotesPanelFrame(animated: animated)
     }
 
     private func calculateInitialRulesOrigin(size: NSSize) -> NSPoint {
@@ -425,8 +472,8 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
     public func resizeRulesPanel(byDelta deltaSize: NSSize) {
         let storage = StorageManager.shared
         guard !storage.settings.isRulesCollapsed, let panel = rulesPanel else { return }
-        let newW = max(230, min(560, storage.settings.rulesWidth + Double(deltaSize.width)))
-        let newH = max(140, min(720, storage.settings.rulesHeight + Double(deltaSize.height)))
+        let newW = max(360, min(620, storage.settings.rulesWidth + Double(deltaSize.width)))
+        let newH = max(210, min(720, storage.settings.rulesHeight + Double(deltaSize.height)))
         storage.settings.rulesWidth = newW
         storage.settings.rulesHeight = newH
 
@@ -442,8 +489,8 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
     public func resizeNotesPanel(byDelta deltaSize: NSSize) {
         let storage = StorageManager.shared
         guard !storage.settings.isNotesCollapsed, let panel = notesPanel else { return }
-        let newW = max(350, min(840, storage.settings.notesWidth + Double(deltaSize.width)))
-        let newH = max(280, min(900, storage.settings.notesHeight + Double(deltaSize.height)))
+        let newW = max(460, min(860, storage.settings.notesWidth + Double(deltaSize.width)))
+        let newH = max(320, min(920, storage.settings.notesHeight + Double(deltaSize.height)))
         storage.settings.notesWidth = newW
         storage.settings.notesHeight = newH
 
@@ -463,6 +510,8 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
         if let panel = rulesPanel {
             let currentTopLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
             let newSize = effectiveRulesSize()
+            panel.minSize = NSSize(width: 240, height: collapsedHeaderHeight)
+            panel.contentMinSize = NSSize(width: 240, height: collapsedHeaderHeight)
             panel.setFrame(NSRect(x: currentTopLeft.x, y: currentTopLeft.y - newSize.height, width: newSize.width, height: newSize.height), display: true, animate: true)
         }
     }
@@ -471,16 +520,29 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
         let storage = StorageManager.shared
         storage.settings.isNotesCollapsed.toggle()
         storage.saveSettings()
+        if storage.settings.isNotesCollapsed {
+            storage.toastBanner = nil
+        }
         updateNotesPanelFrame(animated: true)
         DevChannelManager.shared.silentMemoryTrim()
     }
 
-    private func updateNotesPanelFrame(animated: Bool) {
+    public func updateNotesPanelFrame(animated: Bool) {
         guard let panel = notesPanel else { return }
         let currentTopLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
         let newSize = effectiveNotesSize()
         let newOrigin = NSPoint(x: currentTopLeft.x, y: currentTopLeft.y - newSize.height)
+        panel.minSize = NSSize(width: 240, height: collapsedHeaderHeight)
+        panel.contentMinSize = NSSize(width: 240, height: collapsedHeaderHeight)
         panel.setFrame(NSRect(origin: newOrigin, size: newSize), display: true, animate: animated)
+        storageSaveOriginIfNeeded(panel: panel)
+    }
+
+    private func storageSaveOriginIfNeeded(panel: NSPanel) {
+        let storage = StorageManager.shared
+        storage.settings.notesOriginX = Double(panel.frame.minX)
+        storage.settings.notesOriginY = Double(panel.frame.minY)
+        storage.saveSettings()
     }
 
     // MARK: - Visibility & Lazy Memory Teardown
@@ -503,8 +565,11 @@ public final class WindowController: NSObject, ObservableObject, NSWindowDelegat
         }
         guard let panel = rulesPanel else { return }
         if panel.contentView == nil {
-            panel.contentView = NSHostingView(rootView: RulesView())
+            panel.contentView = FixedSizeHostingView(rootView: RulesView())
         }
+        panel.minSize = NSSize(width: 240, height: collapsedHeaderHeight)
+        panel.contentMinSize = NSSize(width: 240, height: collapsedHeaderHeight)
+        panel.setFrame(NSRect(origin: panel.frame.origin, size: rulesSize), display: true, animate: false)
         panel.alphaValue = storage.settings.isGhostClickThrough ? 0.22 : storage.settings.rulesOpacity
         panel.ignoresMouseEvents = storage.settings.isGhostClickThrough
         panel.orderFrontRegardless()

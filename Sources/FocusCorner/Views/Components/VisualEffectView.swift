@@ -32,6 +32,80 @@ public struct VisualEffectView: NSViewRepresentable {
     }
 }
 
+/// Custom vector emblem logo for FocusCorner (Sapphire-Cyan Squircle + Primeval Aperture Diamond + Focus Core)
+public struct FocusCornerLogoBadge: View {
+    public var size: CGFloat
+
+    public init(size: CGFloat = 20) {
+        self.size = size
+    }
+
+    public var body: some View {
+        ZStack {
+            // Outer Sapphire-Cyan Squircle Shield
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.14, green: 0.42, blue: 0.92),
+                            Color(red: 0.06, green: 0.16, blue: 0.38)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.45, green: 0.88, blue: 1.00).opacity(0.85),
+                                    Color(red: 0.20, green: 0.55, blue: 0.95).opacity(0.30)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: max(1.0, size * 0.06)
+                        )
+                )
+                .shadow(color: Color(red: 0.20, green: 0.68, blue: 1.00).opacity(0.32), radius: size * 0.16, x: 0, y: 1)
+
+            // Inner Rotated Aperture Diamond Ring
+            RoundedRectangle(cornerRadius: size * 0.12, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.42, green: 0.94, blue: 0.88),
+                            Color(red: 0.32, green: 0.72, blue: 1.00)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: max(1.1, size * 0.075)
+                )
+                .frame(width: size * 0.50, height: size * 0.50)
+                .rotationEffect(.degrees(45))
+
+            // Glowing Center Focus Core
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.white,
+                            Color(red: 0.36, green: 0.92, blue: 0.96)
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size * 0.16
+                    )
+                )
+                .frame(width: size * 0.24, height: size * 0.24)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 /// Interactive bottom-right corner drag grip for smooth custom resizing of borderless NSPanels
 public struct ResizeGripHandle: View {
     public var onDragDelta: (NSSize) -> Void

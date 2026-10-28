@@ -1,6 +1,22 @@
 import AppKit
 import SwiftUI
 
+/// Custom NSHostingView that disables automatic window minSize/frame mutation by SwiftUI subviews/popovers.
+/// This permanently prevents the top black space / stretched height bug when collapsing or showing banners.
+public final class FixedSizeHostingView<Content: View>: NSHostingView<Content> {
+    public required init(rootView: Content) {
+        super.init(rootView: rootView)
+        if #available(macOS 13.0, *) {
+            self.sizingOptions = []
+        }
+    }
+
+    @available(*, unavailable)
+    public required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
 public final class FloatingPanel: NSPanel {
     public var allowBackgroundDrag: Bool = true {
         didSet {
@@ -18,8 +34,7 @@ public final class FloatingPanel: NSPanel {
             contentRect: contentRect,
             styleMask: [
                 .borderless,
-                .nonactivatingPanel,
-                .resizable
+                .nonactivatingPanel
             ],
             backing: .buffered,
             defer: false
@@ -28,6 +43,8 @@ public final class FloatingPanel: NSPanel {
         self.allowBackgroundDrag = movable
         self.isFloatingPanel = true
         self.level = level
+        self.minSize = NSSize(width: 220, height: 44)
+        self.contentMinSize = NSSize(width: 220, height: 44)
 
         self.hidesOnDeactivate = false
         self.worksWhenModal = true
@@ -56,6 +73,10 @@ public final class FloatingPanel: NSPanel {
 
     public override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown && !self.ignoresMouseEvents {
+            // Prevent macOS double-click-on-background from collapsing or zooming the floating panel!
+            if event.clickCount >= 2 {
+                return
+            }
             if !NSApp.isActive {
                 NSApp.activate(ignoringOtherApps: true)
             }

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+/// Compact Detachable Floating 3-Day RPA Matrix HUD
 public struct RulesView: View {
     @ObservedObject private var storage = StorageManager.shared
     @ObservedObject private var windowController = WindowController.shared
@@ -13,10 +14,14 @@ public struct RulesView: View {
     public init() {}
 
     public var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        let dayCols = storage.rpaThreeDayColumns
+        let noErr = storage.currentGuNoErrorScore
+        let todayX = storage.todayRPAXCount
+
+        return ZStack(alignment: .topLeading) {
             ZStack {
                 VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                Color(red: 0.08, green: 0.09, blue: 0.12).opacity(0.92)
+                Color(red: 0.08, green: 0.09, blue: 0.12).opacity(0.93)
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
@@ -25,14 +30,16 @@ public struct RulesView: View {
             )
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color(red: 0.30, green: 0.66, blue: 1.00))
-                        .frame(width: 7, height: 7)
+                HStack(spacing: 7) {
+                    FocusCornerLogoBadge(size: 17)
 
-                    Text("Eslatmalar")
+                    Text("RPA Jadvali")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.92))
+                        .foregroundColor(.white.opacity(0.95))
+
+                    Text("• Gu No-Error \(noErr)/20%")
+                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        .foregroundColor(todayX == 0 ? Color(red: 0.24, green: 0.86, blue: 0.64) : Color(red: 0.98, green: 0.42, blue: 0.42))
 
                     Spacer()
 
@@ -44,51 +51,47 @@ public struct RulesView: View {
                     .buttonStyle(.plain)
                 }
 
-                HStack(spacing: 6) {
-                    TextField("Yangi eslatma yozing...", text: $newRuleText, onCommit: submitNewRule)
-                        .textFieldStyle(.plain)
-                        .focused($isInputFocused)
-                        .font(.system(size: 11.5))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.07))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .onTapGesture {
-                            windowController.rulesPanel?.focusForTextInput()
-                            isInputFocused = true
-                        }
+                // 3-Day Column Headers
+                HStack(spacing: 5) {
+                    Text("TAQIQLANGAN ODAT")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white.opacity(0.50))
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if !newRuleText.isEmpty {
-                        Button(action: submitNewRule) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(Color(red: 0.30, green: 0.66, blue: 1.00))
+                    ForEach(dayCols) { col in
+                        VStack(spacing: 0.5) {
+                            Text(col.title)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(col.isToday ? .cyan : .white.opacity(0.70))
+                            Text(col.shortDate)
+                                .font(.system(size: 8, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.45))
                         }
-                        .buttonStyle(.plain)
+                        .frame(width: 52)
                     }
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
 
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 5) {
                         ForEach(storage.rules) { rule in
-                            HStack(alignment: .center, spacing: 8) {
-                                Circle()
-                                    .fill(Color.white.opacity(0.35))
-                                    .frame(width: 5, height: 5)
-
+                            HStack(alignment: .center, spacing: 5) {
                                 if editingRuleId == rule.id {
-                                    TextField("Eslatma...", text: $editingRuleText, onCommit: {
+                                    TextField("Odat...", text: $editingRuleText, onCommit: {
                                         storage.updateRule(rule, newTitle: editingRuleText, newType: rule.ruleType)
                                         editingRuleId = nil
                                     })
                                     .textFieldStyle(.plain)
-                                    .font(.system(size: 11.5))
+                                    .font(.system(size: 11))
                                     .foregroundColor(.white)
                                 } else {
                                     Text(rule.title)
-                                        .font(.system(size: 11.5, weight: .regular))
-                                        .foregroundColor(.white.opacity(0.88))
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.90))
+                                        .lineLimit(2)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .onTapGesture {
                                             windowController.rulesPanel?.focusForTextInput()
@@ -97,15 +100,27 @@ public struct RulesView: View {
                                         }
                                 }
 
-                                Button(action: { storage.deleteRuleForce(rule) }) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.white.opacity(0.3))
+                                ForEach(dayCols) { col in
+                                    let marked = rule.isMarkedX(on: col.dateString)
+                                    Button(action: {
+                                        storage.toggleRPAMarkX(rule, on: col.dateString)
+                                    }) {
+                                        Text(marked ? "X" : "—")
+                                            .font(.system(size: marked ? 11.5 : 10, weight: marked ? .heavy : .regular, design: .rounded))
+                                            .foregroundColor(marked ? Color(red: 1.0, green: 0.38, blue: 0.40) : .white.opacity(0.28))
+                                            .frame(width: 52, height: 26)
+                                            .background(marked ? Color.red.opacity(0.24) : Color.white.opacity(0.04))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                    .stroke(marked ? Color.red.opacity(0.75) : Color.white.opacity(0.07), lineWidth: 1)
+                                            )
+                                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
                             .background(Color.white.opacity(0.04))
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
@@ -115,12 +130,5 @@ public struct RulesView: View {
             .padding(12)
         }
         .environment(\.colorScheme, .dark)
-    }
-
-    private func submitNewRule() {
-        let trimmed = newRuleText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        storage.addRule(title: trimmed, type: .doRule, isLocked: false)
-        newRuleText = ""
     }
 }

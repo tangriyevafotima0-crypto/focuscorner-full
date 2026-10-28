@@ -86,6 +86,54 @@ public struct SATTopic: Identifiable, Codable, Equatable {
         self.trapsAndNotes = trapsAndNotes
     }
 
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case name
+        case section
+        case category
+        case potentialWeight
+        case currentScore
+        case learnedDate
+        case status
+        case checkpoints
+        case trapsAndNotes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+        if let t = try? container.decode(String.self, forKey: .title) {
+            self.title = t
+        } else if let n = try? container.decode(String.self, forKey: .name) {
+            self.title = n
+        } else {
+            self.title = "SAT Mavzu"
+        }
+        self.section = (try? container.decode(SATSection.self, forKey: .section)) ?? .math
+        self.category = (try? container.decode(SATCategory.self, forKey: .category)) ?? .kat1
+        self.potentialWeight = (try? container.decode(Double.self, forKey: .potentialWeight)) ?? 70.0
+        self.currentScore = (try? container.decode(Double.self, forKey: .currentScore)) ?? 0.0
+        self.learnedDate = (try? container.decode(String.self, forKey: .learnedDate)) ?? "2026-10-21"
+        self.status = (try? container.decode(SATTopicStatus.self, forKey: .status)) ?? .ingested
+        self.checkpoints = (try? container.decode([SATReviewCheckpoint].self, forKey: .checkpoints)) ?? []
+        self.trapsAndNotes = (try? container.decode(String.self, forKey: .trapsAndNotes)) ?? ""
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(section, forKey: .section)
+        try container.encode(category, forKey: .category)
+        try container.encode(potentialWeight, forKey: .potentialWeight)
+        try container.encode(currentScore, forKey: .currentScore)
+        try container.encode(learnedDate, forKey: .learnedDate)
+        try container.encode(status, forKey: .status)
+        try container.encode(checkpoints, forKey: .checkpoints)
+        try container.encode(trapsAndNotes, forKey: .trapsAndNotes)
+    }
+
     public var masteryPercentage: Int {
         guard potentialWeight > 0 else { return 0 }
         return Int(round((currentScore / potentialWeight) * 100.0))
@@ -108,9 +156,9 @@ public struct SATTrackerState: Codable, Equatable {
     public var topics: [SATTopic]
 
     public init(
-        systemVersion: String = "SSS v5.2 (1-3-7-14-30 Verified • Oct 18)",
-        baseMathScore: Double = 200,
-        baseRWScore: Double = 200,
+        systemVersion: String = "SSS v6.5 (1-3-7-14-30 Verified • Oct 22)",
+        baseMathScore: Double = 208,
+        baseRWScore: Double = 233.5,
         topics: [SATTopic] = SATTrackerState.initialUserTopics
     ) {
         self.systemVersion = systemVersion
@@ -137,9 +185,9 @@ public struct SATTrackerState: Codable, Equatable {
         currentMathScore + currentRWScore
     }
 
-    /// Pre-populated with exact 654 / 1600 progress (Math: 307, R&W: 347) as of Oct 18, 2026:
-    /// Math: 200 + 68 (Linear Functions Day 7 done) + 31 (Ratios Day 3 done) + 8 (Exponential base) = 307
-    /// R&W: 200 + 49 (Transitions) + 28 (Subject-Verb) + 29 (Words in Context Day 1 done) + 41 (Central Ideas & Command of Evidence) = 347
+    /// Pre-populated with exact 791 / 1600 progress (Math: 345, R&W: 446) as of Oct 21-22, 2026:
+    /// Math: 208 (Base+Drill) + 68 (Linear Functions) + 37 (Ratios Day 7) + 32 (Linear Inequalities Day 1) = 345
+    /// R&W: 233.5 (Base+Conventions) + 59.5 (Transitions) + 34 (Subject-Verb Day 7) + 43 (Words in Context Day 3) + 35 (Boundaries Day 1) + 20 (Verb Tense Day 1) + 21 (Command of Evidence Ingest) = 446
     public static var initialUserTopics: [SATTopic] {
         [
             SATTopic(
@@ -157,87 +205,87 @@ public struct SATTrackerState: Codable, Equatable {
                     SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-24", pointsDelta: 12, isCompleted: false),
                     SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-09", pointsDelta: 0, isCompleted: false)
                 ],
-                trapsAndNotes: "Sign trap: 3 - (-1) = 4; Standart ko'rinishda y ni yolg'iz qoldirish; Perpendikulyar -1/m; No Solution vs Infinitely Many."
+                trapsAndNotes: "Sign trap: 3 - (-1) = 4; Standart ko'rinishda y ni yolg'iz qoldirish; Perpendikulyar -1/m."
             ),
             SATTopic(
                 title: "Ratios, Rates, Percentages & Unit Conversions",
                 section: .math,
                 category: .kat2,
                 potentialWeight: 50,
-                currentScore: 31,
+                currentScore: 37,
                 learnedDate: "2026-10-13",
                 status: .refined70,
                 checkpoints: [
                     SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-14", pointsDelta: 8, isCompleted: true, completedDate: "2026-10-14"),
                     SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-16", pointsDelta: 8, isCompleted: true, completedDate: "2026-10-16"),
-                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-20", pointsDelta: 0, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-27", pointsDelta: 7, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-12", pointsDelta: 7, isCompleted: false)
+                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-20", pointsDelta: 6, isCompleted: true, completedDate: "2026-10-20"),
+                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-27", pointsDelta: 6, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-12", pointsDelta: 0, isCompleted: false)
                 ],
-                trapsAndNotes: "Multiplier method (1.25, 0.85); Maydon/hajm birliklarida kvadrat/kub; O'rtacha tezlik = Jami masofa / Jami vaqt."
+                trapsAndNotes: "Multiplier method (1.25, 0.85); Maydon/hajm birliklarida kvadrat/kub."
             ),
             SATTopic(
-                title: "Exponential Functions & Growth/Decay",
+                title: "Linear Inequalities & Word Problems",
                 section: .math,
-                category: .kat1,
-                potentialWeight: 70,
-                currentScore: 8,
-                learnedDate: "2026-10-17",
-                status: .ingested,
+                category: .kat2,
+                potentialWeight: 50,
+                currentScore: 32,
+                learnedDate: "2026-10-19",
+                status: .refined50,
                 checkpoints: [
-                    SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-18", pointsDelta: 14, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-20", pointsDelta: 14, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-24", pointsDelta: 10.5, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-31", pointsDelta: 10.5, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-16", pointsDelta: 0, isCompleted: false)
+                    SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-20", pointsDelta: 8, isCompleted: true, completedDate: "2026-10-20"),
+                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-22", pointsDelta: 8, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-26", pointsDelta: 6, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-11-02", pointsDelta: 6, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-18", pointsDelta: 0, isCompleted: false)
                 ],
-                trapsAndNotes: "f(t) = a(1 + r)^(t/k); y-intercept boshlang'ich qiymat a; har k vaqt oralig'ida o'zgarish."
+                trapsAndNotes: "Manfiy songa ko'paytirish/bo'lishda ishora o'zgarishi; at least (>=) vs at most (<=)."
             ),
             SATTopic(
                 title: "Transitions (Logical Connectors)",
                 section: .readingWriting,
                 category: .kat1,
                 potentialWeight: 70,
-                currentScore: 49,
+                currentScore: 59.5,
                 learnedDate: "2026-10-11",
-                status: .refined70,
+                status: .consolidated85,
                 checkpoints: [
                     SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-12", pointsDelta: 14, isCompleted: true, completedDate: "2026-10-12"),
                     SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-14", pointsDelta: 14, isCompleted: true, completedDate: "2026-10-14"),
-                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-18", pointsDelta: 10.5, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-18", pointsDelta: 10.5, isCompleted: true, completedDate: "2026-10-18"),
                     SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-25", pointsDelta: 10.5, isCompleted: false),
                     SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-10", pointsDelta: 0, isCompleted: false)
                 ],
-                trapsAndNotes: "Contrast vs Cause/Effect vs Addition. Oldingi va keyingi gap mantiqini bog'lovchisiz o'qib ko'rish."
+                trapsAndNotes: "Contrast vs Cause/Effect vs Addition."
             ),
             SATTopic(
                 title: "Subject-Verb Agreement & Pronouns",
                 section: .readingWriting,
                 category: .kat2,
                 potentialWeight: 40,
-                currentScore: 28,
+                currentScore: 34,
                 learnedDate: "2026-10-12",
-                status: .refined70,
+                status: .consolidated85,
                 checkpoints: [
                     SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-13", pointsDelta: 8, isCompleted: true, completedDate: "2026-10-14"),
                     SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-15", pointsDelta: 8, isCompleted: true, completedDate: "2026-10-16"),
-                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-19", pointsDelta: 6, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-19", pointsDelta: 6, isCompleted: true, completedDate: "2026-10-19"),
                     SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-26", pointsDelta: 6, isCompleted: false),
                     SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-11", pointsDelta: 0, isCompleted: false)
                 ],
-                trapsAndNotes: "Prepositional phrases (of/in/with...) ega bo'la olmaydi; Singular vs Plural pronoun antecedent."
+                trapsAndNotes: "Prepositional phrases (of/in/with...) ega bo'la olmaydi."
             ),
             SATTopic(
                 title: "Words in Context",
                 section: .readingWriting,
                 category: .kat1,
                 potentialWeight: 70,
-                currentScore: 29,
+                currentScore: 43,
                 learnedDate: "2026-10-16",
                 status: .refined50,
                 checkpoints: [
                     SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-17", pointsDelta: 8, isCompleted: true, completedDate: "2026-10-18"),
-                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-19", pointsDelta: 14, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-19", pointsDelta: 14, isCompleted: true, completedDate: "2026-10-19"),
                     SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-23", pointsDelta: 10.5, isCompleted: false),
                     SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-30", pointsDelta: 10.5, isCompleted: false),
                     SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-15", pointsDelta: 0, isCompleted: false)
@@ -245,21 +293,55 @@ public struct SATTrackerState: Codable, Equatable {
                 trapsAndNotes: "Context clue charge (+/-), Semantik juftlik va Contrast signal so'zlar."
             ),
             SATTopic(
-                title: "Central Ideas & Command of Evidence",
+                title: "Boundaries & Punctuation",
+                section: .readingWriting,
+                category: .kat1,
+                potentialWeight: 70,
+                currentScore: 35,
+                learnedDate: "2026-10-19",
+                status: .refined50,
+                checkpoints: [
+                    SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-20", pointsDelta: 14, isCompleted: true, completedDate: "2026-10-20"),
+                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-22", pointsDelta: 14, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-26", pointsDelta: 10.5, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-11-02", pointsDelta: 10.5, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-18", pointsDelta: 0, isCompleted: false)
+                ],
+                trapsAndNotes: "Semicolons, Colons, Dashes, Comma Splice tuzoqlari."
+            ),
+            SATTopic(
+                title: "Verb Tense, Modifiers & Parallelism",
                 section: .readingWriting,
                 category: .kat2,
-                potentialWeight: 60,
-                currentScore: 41,
-                learnedDate: "2026-10-14",
-                status: .refined70,
+                potentialWeight: 40,
+                currentScore: 20,
+                learnedDate: "2026-10-20",
+                status: .refined50,
                 checkpoints: [
-                    SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-15", pointsDelta: 12, isCompleted: true, completedDate: "2026-10-15"),
-                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-17", pointsDelta: 11, isCompleted: true, completedDate: "2026-10-17"),
-                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-21", pointsDelta: 9, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-10-28", pointsDelta: 9, isCompleted: false),
-                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-13", pointsDelta: 0, isCompleted: false)
+                    SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-21", pointsDelta: 8, isCompleted: true, completedDate: "2026-10-21"),
+                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-23", pointsDelta: 8, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-27", pointsDelta: 6, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-11-03", pointsDelta: 6, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-19", pointsDelta: 0, isCompleted: false)
                 ],
-                trapsAndNotes: "Too broad vs Too narrow javob tuzoqlari; faqat matnda bevosita isbotlangan dalil."
+                trapsAndNotes: "Dangling modifier: verguldan keyin darhol haqiqiy ega kelishi shart."
+            ),
+            SATTopic(
+                title: "Command of Evidence",
+                section: .readingWriting,
+                category: .kat1,
+                potentialWeight: 70,
+                currentScore: 21,
+                learnedDate: "2026-10-21",
+                status: .ingested,
+                checkpoints: [
+                    SATReviewCheckpoint(stage: .day1, dueDate: "2026-10-22", pointsDelta: 14, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day3, dueDate: "2026-10-24", pointsDelta: 14, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day7, dueDate: "2026-10-28", pointsDelta: 10.5, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day14, dueDate: "2026-11-04", pointsDelta: 10.5, isCompleted: false),
+                    SATReviewCheckpoint(stage: .day30, dueDate: "2026-11-20", pointsDelta: 0, isCompleted: false)
+                ],
+                trapsAndNotes: "Quantitative & Textual Evidence: grafik va da'vo 100% mos kelishi."
             )
         ]
     }

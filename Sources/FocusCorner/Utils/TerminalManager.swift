@@ -57,8 +57,8 @@ public final class TerminalManager: ObservableObject {
             TerminalLogEntry(
                 command: "fc status",
                 output: """
-                🚀 FocusCorner v5.2 Ichki Terminal & Backup Konsoliga Xush Kelibsiz!
-                • Ichki buyruqlar: `fc status`, `fc sync-today`, `fc backup`, `fc backups`, `fc restore`, `fc doctor`, `fc add "..."`, `fc done <n>`, `clear`, `help`
+                🚀 FocusCorner v6.5 Ichki Terminal, RPA (No-Error 20%) & Backup Konsoliga Xush Kelibsiz!
+                • Ichki buyruqlar: `fc status`, `fc rpa`, `fc rpa x <1..3> [kecha|bugun|ertaga]`, `fc sync-today`, `fc backup`, `fc backups`, `fc restore`, `fc doctor`, `fc add "..."`, `fc done <n>`, `clear`, `help`
                 • Tashqi macOS Zsh / Python3 / GuCTL komandalarni ham to'g'ridan-to'g'ri yozishingiz yoki "📋 Paste & Run" tugmasi orqali buferdan ishga tushirishingiz mumkin.
                 """,
                 exitCode: 0,
@@ -101,7 +101,7 @@ public final class TerminalManager: ObservableObject {
         }
         activeProcess = nil
         isRunningCommand = false
-        appendEntry(command: "^C (To'xtatildi)", output: "⏹ Jarayon foydalanuvchi tomonidan to'xtatildi.", exitCode: 130, durationMs: 0)
+        appendEntry(command: "^C (To'xtatildi)", output: "⏹ Jarayon foydalanuvchi to'monidan to'xtatildi.", exitCode: 130, durationMs: 0)
     }
 
     public func clearConsole() {
@@ -144,7 +144,6 @@ public final class TerminalManager: ObservableObject {
         }
         historyCursor = -1
 
-        // 1. Check if single-line built-in command
         if !trimmed.contains("\n") {
             if trimmed == "clear" || trimmed == "cls" || trimmed == "fc clear" {
                 clearConsole()
@@ -159,8 +158,13 @@ public final class TerminalManager: ObservableObject {
                 appendEntry(command: trimmed, output: out, exitCode: 0, durationMs: 2)
                 return
             }
+            if trimmed == "rpa" || trimmed == "fc rpa" || trimmed.hasPrefix("fc rpa ") {
+                let out = handleBuiltInRPACommand(trimmed)
+                appendEntry(command: trimmed, output: out, exitCode: 0, durationMs: 2)
+                return
+            }
             if trimmed == "sync-today" || trimmed == "fc sync-today" {
-                let out = StorageManager.shared.syncOct18ScheduleAndScores(force: true)
+                let out = StorageManager.shared.syncTodayScheduleAndScores(force: true)
                 appendEntry(command: trimmed, output: out, exitCode: 0, durationMs: 4)
                 return
             }
@@ -258,8 +262,45 @@ public final class TerminalManager: ObservableObject {
             }
         }
 
-        // 2. Otherwise execute in real macOS /bin/zsh shell asynchronously!
         runShellCommandAsync(trimmed)
+    }
+
+    private func handleBuiltInRPACommand(_ raw: String) -> String {
+        let storage = StorageManager.shared
+        let parts = raw.split(separator: " ").map(String.init)
+        if parts.count >= 4 && parts[1].lowercased() == "rpa" && parts[2].lowercased() == "x" {
+            if let idx = Int(parts[3]), idx >= 1, idx <= storage.rules.count {
+                let rule = storage.rules[idx - 1]
+                let dayArg = parts.count >= 5 ? parts[4].lowercased() : "bugun"
+                let targetDate: String
+                if dayArg == "kecha" {
+                    targetDate = storage.rpaYesterdayString
+                } else if dayArg == "ertaga" {
+                    targetDate = storage.rpaTomorrowString
+                } else {
+                    targetDate = storage.rpaTodayString
+                }
+                storage.toggleRPAMarkX(rule, on: targetDate)
+                let isNowX = storage.rules[idx - 1].isMarkedX(on: targetDate)
+                return "🛡 RPA yangilandi (\(targetDate)): \(rule.title) -> \(isNowX ? "[ X ]" : "[ — ]") • Gu No-Error: \(storage.currentGuNoErrorScore)/20%"
+            }
+        }
+
+        let cols = storage.rpaThreeDayColumns
+        var lines: [String] = [
+            "=== 🛡 FocusCorner RPA (3-Kunlik Anti-Odat & Gu No-Error 20% Sektori) ===",
+            "• Gu No-Error Sektori: \(storage.currentGuNoErrorScore) / 20% (Bugun: \(storage.todayRPAXCount) ta X | Kecha: \(storage.yesterdayRPAXCount) ta X)",
+            "• Sanalar: \(cols[0].title)(\(cols[0].shortDate)) | \(cols[1].title)(\(cols[1].shortDate)) | \(cols[2].title)(\(cols[2].shortDate))",
+            "------------------------------------------------------------------------"
+        ]
+        for (i, r) in storage.rules.enumerated() {
+            let c0 = r.isMarkedX(on: cols[0].dateString) ? "[X]" : "[—]"
+            let c1 = r.isMarkedX(on: cols[1].dateString) ? "[X]" : "[—]"
+            let c2 = r.isMarkedX(on: cols[2].dateString) ? "[X]" : "[—]"
+            lines.append("  [\(i + 1)] \(c0) \(c1) \(c2)  \(r.title)")
+        }
+        lines.append("• Belgilash uchun: `fc rpa x 1 bugun` yoki `fc rpa x 2 kecha`")
+        return lines.joined(separator: "\n")
     }
 
     private func handleBuiltInAddTask(_ rawArgs: String) -> String {
@@ -305,20 +346,21 @@ public final class TerminalManager: ObservableObject {
 
     private func builtInHelpText() -> String {
         return """
-        === 🛠 FocusCorner v5.2 Ichki Terminal Buyruqlari ===
-        • fc status                  — SAT, ExAcc, Vazifalar, RAM va Backup holatini ko'rish
-        • fc sync-today              — 18-Oktabr (Bugungi) va Dushanbalik vazifalarni hamda 654 SAT ballni sinxronlash
-        • fc add "Nomi" --days 1     — Yangi vazifa qo'shish (--sat yoki --exacc bayrog'i bilan)
-        • fc done <raqam yoki so'z>  — Vazifani bajarildi (Yashil) deb belgilash
-        • fc sat <math> <rw>         — SAT ballarini bevosita o'rnatish (masalan: fc sat 307 347)
-        • fc exacc <ball>            — ExAcc zaryadini o'rnatish (masalan: fc exacc 170)
-        • fc backup [izoh]           — Barcha fayllar va bloknotdan tezkor Snapshot zahira olish
-        • fc backups                 — Barcha saqlangan zahira nusxalar ro'yxati
-        • fc restore                 — Eng so'nggi zahira nusxadan 1 bosishda qayta tiklash
-        • fc export-zip              — ~/Downloads papkasiga to'liq ZIP arxiv eksport qilish
-        • fc doctor                  — Fayllar butunligi va tizim diagnostikasini o'tkazish
-        • clear                      — Terminal ekranini tozalash
-        • Har qanday macOS Zsh / Python3 / ./guctl kodni ham to'g'ridan-to'g'ri yozib Enter bosishingiz mumkin!
+        === 🛠 FocusCorner v6.5 Ichki Terminal Buyruqlari ===
+        • fc status                       — SAT, ExAcc, RPA (Gu No-Error 20%), Vazifalar va Backup holati
+        • fc rpa                          — 3-kunlik RPA (Kecha, Bugun, Ertaga) jadvalini ko'rish
+        • fc rpa x <raqam> [bugun|kecha]  — RPA odatiga [X] belgisini qo'yish yoki olib tashlash
+        • fc sync-today                   — 22-Oktabr jadvali, 791 SAT va 230 ExAcc ni sinxronlash
+        • fc add "Nomi" --days 1          — Yangi vazifa qo'shish (--sat yoki --exacc bayrog'i bilan)
+        • fc done <raqam yoki so'z>       — Vazifani bajarildi (Yashil) deb belgilash
+        • fc sat <math> <rw>              — SAT ballarini bevosita o'rnatish (masalan: fc sat 345 446)
+        • fc exacc <ball>                 — ExAcc zaryadini o'rnatish (masalan: fc exacc 230)
+        • fc backup [izoh]                — Barcha fayllar va bloknotdan tezkor Snapshot zahira olish
+        • fc backups                      — Barcha saqlangan zahira nusxalar ro'yxati
+        • fc restore                      — Eng so'nggi zahira nusxadan 1 bosishda qayta tiklash
+        • fc export-zip                   — ~/Downloads papkasiga to'liq ZIP arxiv eksport qilish
+        • fc doctor                       — Fayllar butunligi va tizim diagnostikasini o'tkazish
+        • clear                           — Terminal ekranini tozalash
         """
     }
 
@@ -327,7 +369,6 @@ public final class TerminalManager: ObservableObject {
             stopRunningCommand()
         }
 
-        // Take a silent pre-script backup if command touches tasks.json or focus_corner
         if command.contains("tasks.json") || command.contains("sat_tracker.json") || command.contains(".focus_corner") {
             BackupManager.shared.createAutoBackupIfNeeded(reason: "Terminal Skript Oldidan")
         }
@@ -375,8 +416,7 @@ public final class TerminalManager: ObservableObject {
 
             let elapsedMs = max(1, Int(Date().timeIntervalSince(startTime) * 1000.0))
             let status = proc.terminationStatus
-            var combined = String(data: outData, encoding: .utf8) ?? 
-            combined = combined.trimmingCharacters(in: .whitespacesAndNewlines)
+            var combined = (String(data: outData, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if combined.isEmpty {
                 combined = status == 0 ? "✓ Buyruq muvaffaqiyatli bajarildi (chiqish matni yo'q)." : "⚠️ Jarayon \(status) kodi bilan yakunlandi."
             }
@@ -389,7 +429,6 @@ public final class TerminalManager: ObservableObject {
                 self.isRunningCommand = false
                 self.activeProcess = nil
                 self.appendEntry(command: command, output: combined, exitCode: status, durationMs: elapsedMs)
-                // Immediately reload StorageManager in case script updated ~/.focus_corner/*.json
                 StorageManager.shared.reloadFromDiskSafely()
                 BackupManager.shared.refreshSnapshotsList()
                 DevChannelManager.shared.silentMemoryTrim()

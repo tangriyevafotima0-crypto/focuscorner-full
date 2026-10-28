@@ -2,11 +2,21 @@ import Foundation
 import AppKit
 import Combine
 
+public struct RPADayColumnInfo: Identifiable, Equatable {
+    public var id: String { dateString }
+    public let title: String        // "Kecha", "Bugun", "Ertaga"
+    public let shortDate: String    // "20-Okt", "21-Okt", "22-Okt"
+    public let dateString: String   // "2026-10-20"
+    public let isToday: Bool
+}
+
 @MainActor
 public final class StorageManager: ObservableObject {
     public static let shared = StorageManager()
 
     @Published public var rules: [RuleItem] = []
+    @Published public var rpaArchive: [RPAArchivedDayEntry] = []
+    @Published public var rpaHistoryMarkdown: String = ""
     @Published public var tasks: [TaskItem] = []
     @Published public var satTracker: SATTrackerState = SATTrackerState()
     @Published public var exAcc: ExAccState = ExAccState()
@@ -18,6 +28,8 @@ public final class StorageManager: ObservableObject {
     public let baseDirURL: URL
     public let backupsDirURL: URL
     public let rulesFileURL: URL
+    public let rpaArchiveFileURL: URL
+    public let rpaHistoryFileURL: URL
     public let tasksFileURL: URL
     public let satFileURL: URL
     public let exAccFileURL: URL
@@ -29,21 +41,27 @@ public final class StorageManager: ObservableObject {
     private var isInternalWriteInProgress: Bool = false
     private var watcherDebounceWorkItem: DispatchWorkItem?
     private var protocolTimer: Timer?
+    private var lastObservedTodayString: String = ""
 
     private init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         self.baseDirURL = home.appendingPathComponent(".focus_corner", isDirectory: true)
         self.backupsDirURL = baseDirURL.appendingPathComponent("backups", isDirectory: true)
         self.rulesFileURL = baseDirURL.appendingPathComponent("rules.json")
+        self.rpaArchiveFileURL = baseDirURL.appendingPathComponent("rpa_archive.json")
+        self.rpaHistoryFileURL = baseDirURL.appendingPathComponent("rpa_history.md")
         self.tasksFileURL = baseDirURL.appendingPathComponent("tasks.json")
         self.satFileURL = baseDirURL.appendingPathComponent("sat_tracker.json")
         self.exAccFileURL = baseDirURL.appendingPathComponent("exacc.json")
         self.settingsFileURL = baseDirURL.appendingPathComponent("settings.json")
         self.historyFileURL = baseDirURL.appendingPathComponent("history.md")
+        self.lastObservedTodayString = TaskItem.todayString()
 
         ensureDirectoriesAndBackups()
         loadAllData()
         migrateToV5_2Oct18SynergyIfNeeded()
+        autoRolloverAndArchiveRPADates()
+        syncGuApertureNoErrorIfInstalled()
         refreshSafetyProtocolStatus()
         startDirectoryWatcher()
         startSafetyProtocolTimer()
@@ -67,25 +85,243 @@ public final class StorageManager: ObservableObject {
 
             - [x] [2026-10-10 20:42] [SAT] [Ingest 30%] Linear Functions & Systems (+24 ball)
             - [x] [2026-10-11 14:17] [SAT] [Ingest 30%] Transitions (Logical Connectors) (+21 ball)
-            - [x] [2026-10-11 22:36] [SAT] [Day 1 +20%] Linear Functions — Day 1 Review (+16 ball)
-            - [x] [2026-10-12 19:46] [SAT] [Day 1 +20%] Transitions — Day 1 Review (+14 ball)
-            - [x] [2026-10-12 19:46] [SAT] [Ingest 30%] Subject-Verb Agreement & Pronouns (+12 ball)
-            - [x] [2026-10-14 11:48] [SAT] [Ingest 30%] Ratios, Rates, Percentages & Unit Conversions (+15 ball)
-            - [x] [2026-10-14 21:19] [SAT] [Day 3 +20%] Transitions — Day 3 Recall (+14 ball)
-            - [x] [2026-10-14 21:19] [SAT] [Day 1 +20%] Subject-Verb Agreement — Day 1 Review (+8 ball)
-            - [x] [2026-10-14 21:26] [SAT] [Day 1 +20%] Ratios, Rates & Percentages — Day 1 Review (+8 ball)
-            - [x] [2026-10-14 22:28] [SAT] [Day 3 +20%] Linear Functions — Day 3 Recall (+16 ball)
-            - [x] [2026-10-16 09:05] [SAT] [Day 3 +20%] Subject-Verb Agreement & Pronouns — Day 3 Recall (+8 ball)
-            - [x] [2026-10-16 20:15] [SAT] [Day 3 +20%] Ratios, Rates, Percentages & Units — Day 3 Recall (+8 ball)
-            - [x] [2026-10-16 21:10] [SAT] [Ingest 30%] Words in Context — Deep Focus (+21 ball)
-            - [x] [2026-10-18 14:20] [GENERAL] Investment Accni yaratish va boshlash
-            - [x] [2026-10-18 14:40] [GENERAL] Nevroz Acc yaratish va boshlash
-            - [x] [2026-10-18 15:10] [GENERAL] GU Tizimini yaratish
             - [x] [2026-10-18 16:05] [SAT] [Day 7] Linear Functions & Systems — Day 7 Review (+12 ball)
-            - [x] [2026-10-18 16:30] [SAT] [Day 1] Words in Context — Day 1 Review (+8 ball)
+            - [x] [2026-10-20 21:30] [SAT] [Day 1] Boundaries & Punctuation (+14 ball) va Linear Inequalities (+8 ball)
+            - [x] [2026-10-21 22:15] [SAT] [Ingest 30%] Command of Evidence (+21 ball) va Verb Tense Day 1 (+8 ball)
 
             """
             try? header.write(to: historyFileURL, atomically: true, encoding: .utf8)
+        }
+
+        if !fm.fileExists(atPath: rpaHistoryFileURL.path) {
+            let rpaHeader = """
+            # 🛡 FocusCorner RPA — Kunlik Anti-Odat va Gu No-Error (20%) Arxiv Tarixi
+            > Har kuni sanalar almashganda kechagi va oldingi kunlarning RPA holati avtomatik ravishda ushbu faylga arxivlanadi.
+
+            """
+            try? rpaHeader.write(to: rpaHistoryFileURL, atomically: true, encoding: .utf8)
+        }
+    }
+
+    // MARK: - 3-Day Dynamic RPA Columns (Kecha, Bugun, Ertaga) & Gu No-Error 20% Sector
+
+    public var rpaYesterdayString: String {
+        let d = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        return TaskItem.todayString(from: d)
+    }
+
+    public var rpaTodayString: String {
+        TaskItem.todayString(from: Date())
+    }
+
+    public var rpaTomorrowString: String {
+        let d = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        return TaskItem.todayString(from: d)
+    }
+
+    public var rpaThreeDayColumns: [RPADayColumnInfo] {
+        let cal = Calendar.current
+        let now = Date()
+        let yDate = cal.date(byAdding: .day, value: -1, to: now) ?? now
+        let tmDate = cal.date(byAdding: .day, value: 1, to: now) ?? now
+        return [
+            RPADayColumnInfo(
+                title: "Kecha",
+                shortDate: Self.shortUzbekDayMonth(from: yDate),
+                dateString: TaskItem.todayString(from: yDate),
+                isToday: false
+            ),
+            RPADayColumnInfo(
+                title: "Bugun",
+                shortDate: Self.shortUzbekDayMonth(from: now),
+                dateString: TaskItem.todayString(from: now),
+                isToday: true
+            ),
+            RPADayColumnInfo(
+                title: "Ertaga",
+                shortDate: Self.shortUzbekDayMonth(from: tmDate),
+                dateString: TaskItem.todayString(from: tmDate),
+                isToday: false
+            )
+        ]
+    }
+
+    nonisolated public static func shortUzbekDayMonth(from date: Date) -> String {
+        let cal = Calendar.current
+        let day = cal.component(.day, from: date)
+        let month = cal.component(.month, from: date)
+        let months = ["Yan", "Fev", "Mar", "Apr", "May", "Iyn", "Iyl", "Avg", "Sen", "Okt", "Noy", "Dek"]
+        let mName = (month >= 1 && month <= 12) ? months[month - 1] : "Okt"
+        return String(format: "%02d-%@", day, mName)
+    }
+
+    public func rpaXCount(for dateString: String) -> Int {
+        rules.filter { $0.isMarkedX(on: dateString) }.count
+    }
+
+    public var todayRPAXCount: Int {
+        rpaXCount(for: rpaTodayString)
+    }
+
+    public var yesterdayRPAXCount: Int {
+        rpaXCount(for: rpaYesterdayString)
+    }
+
+    /// Gu Internal Cultivation: 90% Natural Aptitude -> 20% No-Error (Xatolarsiz Poklik) Sektori (0..20%)
+    public func guNoErrorSectorScore(for dateString: String) -> Int {
+        guard !rules.isEmpty else { return 20 }
+        let xCnt = rpaXCount(for: dateString)
+        let cleanCnt = max(0, rules.count - xCnt)
+        return max(0, min(20, Int(round(20.0 * Double(cleanCnt) / Double(rules.count)))))
+    }
+
+    public var currentGuNoErrorScore: Int {
+        guNoErrorSectorScore(for: rpaTodayString)
+    }
+
+    public func toggleRPAMarkX(_ rule: RuleItem, on dateString: String) {
+        guard let idx = rules.firstIndex(where: { $0.id == rule.id }) else { return }
+        let wasMarked = rules[idx].xMarkedDates.contains(dateString)
+        if wasMarked {
+            rules[idx].xMarkedDates.removeAll { $0 == dateString }
+        } else {
+            rules[idx].xMarkedDates.append(dateString)
+            rules[idx].xMarkedDates = Array(Set(rules[idx].xMarkedDates)).sorted()
+        }
+        saveRules()
+        autoRolloverAndArchiveRPADates()
+        syncGuApertureNoErrorIfInstalled()
+
+        let statusSymbol = wasMarked ? "[ — ] Pok holatga qaytarildi" : "[ X ] Xato qayd etildi"
+        appendHistoryLine("- [RPA] [{TIMESTAMP}] [\(dateString)] \(rule.title) -> \(statusSymbol) (Gu No-Error: \(currentGuNoErrorScore)/20%)")
+        if !settings.isNotesCollapsed {
+            showToast(wasMarked
+                ? "🛡 RPA Toza: '\(rule.title)' (\(dateString)) X olindi • Gu No-Error: \(currentGuNoErrorScore)/20%"
+                : "⚠️ RPA [X] belgilandi (\(dateString)) • Gu No-Error Sektori: \(currentGuNoErrorScore)/20%"
+            )
+        }
+    }
+
+    /// Har kuni sana yangilanganda kechadan oldingi kunlarni va joriy ko'rsatkichlarni avtomatik arxivlaydi
+    public func autoRolloverAndArchiveRPADates() {
+        let todayStr = rpaTodayString
+        let yesterdayStr = rpaYesterdayString
+        let tomorrowStr = rpaTomorrowString
+
+        // Collect all dates ever touched + yesterday + any past dates
+        var candidateDates = Set<String>()
+        for r in rules {
+            for d in r.xMarkedDates {
+                candidateDates.insert(d)
+            }
+        }
+        if !settings.lastPromptDate.isEmpty && settings.lastPromptDate < todayStr {
+            candidateDates.insert(settings.lastPromptDate)
+        }
+        candidateDates.insert(yesterdayStr)
+
+        var archiveChanged = false
+        let nowHuman = Self.formattedTimestamp()
+
+        for dateStr in candidateDates.sorted() {
+            // Only archive dates up to today (do not archive tomorrow yet unless it passes)
+            guard dateStr <= todayStr else { continue }
+            let violated = rules.filter { $0.isMarkedX(on: dateStr) }.map { $0.title }
+            let clean = rules.filter { !$0.isMarkedX(on: dateStr) }.map { $0.title }
+            let entry = RPAArchivedDayEntry(
+                dateString: dateStr,
+                violatedHabitTitles: violated,
+                cleanHabitTitles: clean,
+                totalHabitsCount: rules.count,
+                xCount: violated.count,
+                guNoErrorScore: guNoErrorSectorScore(for: dateStr),
+                archivedAt: nowHuman
+            )
+            if let existingIdx = rpaArchive.firstIndex(where: { $0.dateString == dateStr }) {
+                if rpaArchive[existingIdx].violatedHabitTitles != entry.violatedHabitTitles ||
+                   rpaArchive[existingIdx].totalHabitsCount != entry.totalHabitsCount {
+                    rpaArchive[existingIdx] = entry
+                    archiveChanged = true
+                }
+            } else {
+                rpaArchive.append(entry)
+                archiveChanged = true
+            }
+        }
+
+        // Prune xMarkedDates older than 14 days from active rules.json once safely in rpaArchive
+        let activeWindowDates = Set([yesterdayStr, todayStr, tomorrowStr])
+        var rulesPruned = false
+        for i in rules.indices {
+            let beforeCount = rules[i].xMarkedDates.count
+            rules[i].xMarkedDates = rules[i].xMarkedDates.filter { d in
+                activeWindowDates.contains(d) || d >= yesterdayStr
+            }
+            if rules[i].xMarkedDates.count != beforeCount {
+                rulesPruned = true
+            }
+        }
+        if rulesPruned {
+            saveRules()
+        }
+
+        if archiveChanged {
+            rpaArchive.sort { $0.dateString > $1.dateString }
+            saveRPAArchive()
+            rebuildRPAHistoryMarkdown()
+        } else if rpaHistoryMarkdown.isEmpty {
+            rebuildRPAHistoryMarkdown()
+        }
+    }
+
+    private func rebuildRPAHistoryMarkdown() {
+        var lines: [String] = [
+            "# 🛡 FocusCorner RPA — Kunlik Anti-Odat va Gu No-Error (20%) Arxiv Tarixi",
+            "> Har kuni sanalar almashganda avtomatik yangilanadi va saqlab boriladi.",
+            ""
+        ]
+        for item in rpaArchive.sorted(by: { $0.dateString > $1.dateString }) {
+            let badge = item.xCount == 0 ? "✅ POK (0 ta X)" : "⚠️ \(item.xCount) ta [X]"
+            lines.append("### 📅 \(item.dateString) — Gu No-Error: \(item.guNoErrorScore)/20% • \(badge)")
+            if !item.violatedHabitTitles.isEmpty {
+                for v in item.violatedHabitTitles {
+                    lines.append("- `[ X ]` \(v)")
+                }
+            }
+            for c in item.cleanHabitTitles {
+                lines.append("- `[ — ]` \(c)")
+            }
+            lines.append("")
+        }
+        let content = lines.joined(separator: "\n")
+        self.rpaHistoryMarkdown = content
+        isInternalWriteInProgress = true
+        try? content.write(to: rpaHistoryFileURL, atomically: true, encoding: .utf8)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.isInternalWriteInProgress = false
+        }
+    }
+
+    /// Agar foydalanuvchi Mac'ida Gu Primeval Aperture (~/.gu_aperture/state.json) bo'lsa, 20% No-Error sektorini bevosita sinxronlaydi
+    public func syncGuApertureNoErrorIfInstalled() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let guStateURL = home.appendingPathComponent(".gu_aperture/state.json")
+        guard FileManager.default.fileExists(atPath: guStateURL.path),
+              let data = try? Data(contentsOf: guStateURL),
+              var jsonObj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return
+        }
+        let score = currentGuNoErrorScore
+        var changed = false
+        if let oldVal = jsonObj["pillarNoErrors"] as? Int, oldVal != score {
+            jsonObj["pillarNoErrors"] = score
+            changed = true
+        } else if jsonObj["pillarNoErrors"] == nil {
+            jsonObj["pillarNoErrors"] = score
+            changed = true
+        }
+        if changed, let updatedData = try? JSONSerialization.data(withJSONObject: jsonObj, options: [.prettyPrinted, .sortedKeys]) {
+            try? updatedData.write(to: guStateURL, options: .atomic)
         }
     }
 
@@ -99,7 +335,6 @@ public final class StorageManager: ObservableObject {
         if let env = try? decoder.decode(TasksFileEnvelope.self, from: data) {
             return env.tasks
         }
-        // Fallback decoder without strict iso8601 in case timestamps are custom or missing
         let fallbackDecoder = JSONDecoder()
         if let arr = try? fallbackDecoder.decode([TaskItem].self, from: data) {
             return arr
@@ -135,7 +370,7 @@ public final class StorageManager: ObservableObject {
             saveSettings()
         }
 
-        // 2. Rules
+        // 2. Rules (RPA 3-Day Anti-Habits)
         if let data = try? Data(contentsOf: rulesFileURL),
            let loaded = try? decoder.decode([RuleItem].self, from: data),
            !loaded.isEmpty {
@@ -145,6 +380,21 @@ public final class StorageManager: ObservableObject {
         } else if !fm.fileExists(atPath: rulesFileURL.path) {
             self.rules = RuleItem.defaultRPARules
             saveRules()
+        }
+
+        // 2B. RPA Archive
+        if let data = try? Data(contentsOf: rpaArchiveFileURL),
+           let loaded = try? decoder.decode([RPAArchivedDayEntry].self, from: data) {
+            if self.rpaArchive != loaded {
+                self.rpaArchive = loaded
+            }
+        } else if !fm.fileExists(atPath: rpaArchiveFileURL.path) {
+            self.rpaArchive = []
+            saveRPAArchive()
+        }
+
+        if let rpaMd = try? String(contentsOf: rpaHistoryFileURL, encoding: .utf8) {
+            self.rpaHistoryMarkdown = rpaMd
         }
 
         // 3. SAT Tracker
@@ -178,7 +428,6 @@ public final class StorageManager: ObservableObject {
                     self.tasks = loaded
                 }
             } else {
-                // Quarantine unreadable file to backups rather than wiping user's tasks!
                 let stamp = Int(Date().timeIntervalSince1970)
                 let quarantineURL = backupsDirURL.appendingPathComponent("unreadable_tasks_\(stamp).json")
                 try? data.write(to: quarantineURL)
@@ -196,228 +445,206 @@ public final class StorageManager: ObservableObject {
         }
     }
 
-    /// Synchronizes the exact Oct 18, 2026 schedule, SAT 654 (Math 307 | RW 347), ExAcc 170, and tasks
     @discardableResult
     public func syncOct18ScheduleAndScores(force: Bool = false) -> String {
-        let today = TaskItem.todayString()
-        let tomorrowDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        let tomorrow = TaskItem.todayString(from: tomorrowDate)
-        let fourDaysDate = Calendar.current.date(byAdding: .day, value: 4, to: Date()) ?? Date()
-        let fourDays = TaskItem.todayString(from: fourDaysDate)
+        return syncTodayScheduleAndScores(force: force)
+    }
 
-        // Ensure SAT Tracker is at least 654 (Math 307 | RW 347)
-        if satTracker.totalSATScore < 654 || force {
+    /// Synchronizes the verified Oct 22, 2026 schedule, SAT 791 (Math 345 | RW 446), ExAcc 230, and 3-day RPA rules
+    @discardableResult
+    public func syncTodayScheduleAndScores(force: Bool = false) -> String {
+        if satTracker.totalSATScore < 791 || force {
             satTracker = SATTrackerState(
-                systemVersion: "SSS v5.2 (1-3-7-14-30 Verified • Oct 18)",
-                baseMathScore: 200,
-                baseRWScore: 200,
+                systemVersion: "SSS v6.5 (1-3-7-14-30 Verified • Oct 22)",
+                baseMathScore: 208,
+                baseRWScore: 233.5,
                 topics: SATTrackerState.initialUserTopics
             )
             saveSATTracker()
         }
 
-        if exAcc.totalStandardCharge < 170 || force {
-            exAcc.totalStandardCharge = 170
+        if exAcc.totalStandardCharge < 230 || force {
+            exAcc.totalStandardCharge = 230
             syncSATFactionObserverMission()
             saveExAcc()
         }
 
-        let oct18Tasks: [TaskItem] = [
-            // TODAY'S ACTIVE TASKS (18-Oktabr, Yakshanba — Bugun • Ko'k)
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct18-sat-sr-1"),
-                title: "[SAT SR] Day 7: Transitions (+10.5) | Day 1: Exponential (+14)",
-                isCompleted: false,
-                sourceSystem: .sat,
-                accumulatorSize: .small,
-                satStage: .day7,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 24.5,
-                notes: "17:00 – 18:30 Spaced Repetition bloki"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct18-sat-math-quad"),
-                title: "[SAT Math] Quadratic Functions & Parabolas — Deep Focus (+24 ball)",
-                isCompleted: false,
-                sourceSystem: .sat,
-                accumulatorSize: .big,
-                satStage: .ingest,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 24.0,
-                notes: "18:45 – 19:45 Sunday Buffer mavzusi (Vertex, Discriminant, Vieta)"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct18-ae-checkin"),
-                title: "⚡ A&E Check-in: SAT Mani Acc (Audit & Scoring)",
-                isCompleted: false,
-                sourceSystem: .exacc,
-                accumulatorSize: .small,
-                satStage: .none,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 10.0,
-                notes: "20:00 – 20:30 Haftalik audit"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct18-invest-buffer"),
-                title: "ExAcc: Sunday Buffer — Invest Midi Acc (Haftalik sarhisob)",
-                isCompleted: false,
-                sourceSystem: .exacc,
-                accumulatorSize: .small,
-                satStage: .none,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 10.0,
-                notes: "21:45 – 22:15 Investitsiya Midi Acc"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct18-gu-rank1"),
-                title: "[Gu Rank 1 - Initial] Kun 1: Awakening & Tana Bilan Yarashish",
-                isCompleted: false,
-                sourceSystem: .general,
-                accumulatorSize: .small,
-                satStage: .none,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 10.0,
-                notes: "22:30 – 23:00 Ichki kultivatsiya bloki"
-            ),
+        // Upgrade legacy generic reminders to the 3 core RPA Anti-Habits if still on old default
+        if rules.isEmpty || rules.first?.title.contains("Fokus vaqtida telefon") == true {
+            let existingDates = rules.flatMap { $0.xMarkedDates }
+            var defaults = RuleItem.defaultRPARules
+            if !existingDates.isEmpty && !defaults.isEmpty {
+                defaults[0].xMarkedDates = Array(Set(existingDates)).sorted()
+            }
+            self.rules = defaults
+            saveRules()
+        }
 
-            // UPCOMING MULTI-DAY TASKS (Keyingi kunlar — 19-Oktabr Dushanba & 22-Oktabr)
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct19-sat-rw-punct"),
-                title: "[SAT RW] Boundaries & Punctuation — Deep Focus (Ingest 30%) (+21 ball)",
-                isCompleted: false,
-                sourceSystem: .sat,
-                accumulatorSize: .big,
-                satStage: .ingest,
-                scheduledDate: tomorrow,
-                startDate: today,
-                durationDays: 2,
-                pointsValue: 21.0,
-                notes: "Dushanba (19-Okt) kuniga ko'chirilgan — Semicolons, Colons, Dashes & Comma Splices"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct19-sat-math-ineq"),
-                title: "[SAT Math] Linear Inequalities & Word Problems — Ingest 30% (+24 ball)",
-                isCompleted: false,
-                sourceSystem: .sat,
-                accumulatorSize: .big,
-                satStage: .ingest,
-                scheduledDate: tomorrow,
-                startDate: today,
-                durationDays: 2,
-                pointsValue: 24.0,
-                notes: "Dushanba (19-Okt) asosiy Math bloki"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "oct22-exacc-deep"),
-                title: "[ExAcc] Haftalik Mini-Acc Deep Work Bloki (+25 ball)",
-                isCompleted: false,
-                sourceSystem: .exacc,
-                accumulatorSize: .medium,
-                satStage: .none,
-                scheduledDate: fourDays,
-                startDate: today,
-                durationDays: 5,
-                pointsValue: 25.0,
-                notes: "Payshanba (22-Okt) — Ko'kish oq rejim"
-            ),
+        if tasks.isEmpty || force {
+            let oct22Tasks: [TaskItem] = [
+                // BUGUNGI VAZIFALAR (2026-10-22, Payshanba — Har bir takrorlash ALOHIDA SATRDA!)
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct22-sat-sr-punct-d3"),
+                    title: "[SAT SR] Boundaries & Punctuation — Day 3 Recall (+14 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .small,
+                    satStage: .day3,
+                    scheduledDate: "2026-10-22",
+                    startDate: "2026-10-22",
+                    durationDays: 1,
+                    pointsValue: 14.0,
+                    notes: "17:25 – 18:30 Oraliq takrorlash bloki"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct22-sat-sr-ineq-d3"),
+                    title: "[SAT SR] Linear Inequalities & Word Problems — Day 3 Recall (+8 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .small,
+                    satStage: .day3,
+                    scheduledDate: "2026-10-22",
+                    startDate: "2026-10-22",
+                    durationDays: 1,
+                    pointsValue: 8.0,
+                    notes: "17:25 – 18:30 Oraliq takrorlash bloki"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct22-sat-sr-coe-d1"),
+                    title: "[SAT SR] Command of Evidence — Day 1 Review (+14 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .small,
+                    satStage: .day1,
+                    scheduledDate: "2026-10-22",
+                    startDate: "2026-10-22",
+                    durationDays: 1,
+                    pointsValue: 14.0,
+                    notes: "21-Oktabr o'zlashtirilgan Command of Evidence bo'yicha Day 1 Review"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct22-sat-math-poly"),
+                    title: "[SAT Math] Polynomials, Radicals & Rational Equations — Deep Focus (Ingest 30%) (+24 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .big,
+                    satStage: .ingest,
+                    scheduledDate: "2026-10-22",
+                    startDate: "2026-10-22",
+                    durationDays: 1,
+                    pointsValue: 24.0,
+                    notes: "Kat-1 Math asosiy darsi: ildizlar, ratsional tenglamalar va ko'phadlar"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct22-exacc-small4"),
+                    title: "[EXACC] Small Acc #4: Moliyaviy sog'lomlik & Red Flags (+10 ball)",
+                    isCompleted: false,
+                    sourceSystem: .exacc,
+                    accumulatorSize: .small,
+                    satStage: .none,
+                    scheduledDate: "2026-10-22",
+                    startDate: "2026-10-22",
+                    durationDays: 1,
+                    pointsValue: 10.0,
+                    notes: "Investitsiya Midi Acc: moliyaviy xavf signallari"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct22-gu-d5"),
+                    title: "[Gu Rank 1 - Initial] Kun 5: Issiqlikda 1sm Tizza & Oqar Suv (+10 ball)",
+                    isCompleted: false,
+                    sourceSystem: .general,
+                    accumulatorSize: .small,
+                    satStage: .none,
+                    scheduledDate: "2026-10-22",
+                    startDate: "2026-10-22",
+                    durationDays: 1,
+                    pointsValue: 10.0,
+                    notes: "Tana bilan ishlash va jismoniy mikro-odat"
+                ),
 
-            // COMPLETED TASKS (Bajarilganlar — Yashil)
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "done-oct18-linear-d7"),
-                title: "[SAT] Linear Functions & Systems — Day 7 Review (+12 ball)",
-                isCompleted: true,
-                completedAt: Date(),
-                sourceSystem: .sat,
-                accumulatorSize: .small,
-                satStage: .day7,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 12.0,
-                notes: "Bajarildi ✅ (+12 ball -> 68/80 Consolidated)"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "done-oct18-words-d1"),
-                title: "[SAT] Words in Context — Day 1 Review (+8 ball)",
-                isCompleted: true,
-                completedAt: Date(),
-                sourceSystem: .sat,
-                accumulatorSize: .small,
-                satStage: .day1,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 8.0,
-                notes: "Bajarildi ✅ (+8 ball -> 29/70)"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "done-oct18-inv-init"),
-                title: "[GENERAL] Investment Accni yaratish va boshlash",
-                isCompleted: true,
-                completedAt: Date(),
-                sourceSystem: .general,
-                accumulatorSize: .none,
-                satStage: .none,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 0,
-                notes: "Bajarildi ✅"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "done-oct18-nevroz-init"),
-                title: "[GENERAL] Nevroz Acc yaratish va boshlash",
-                isCompleted: true,
-                completedAt: Date(),
-                sourceSystem: .general,
-                accumulatorSize: .none,
-                satStage: .none,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 0,
-                notes: "Bajarildi ✅"
-            ),
-            TaskItem(
-                id: TaskItem.deterministicUUID(from: "done-oct18-gu-init"),
-                title: "[GENERAL] GU Tizimini yaratish",
-                isCompleted: true,
-                completedAt: Date(),
-                sourceSystem: .general,
-                accumulatorSize: .none,
-                satStage: .none,
-                scheduledDate: today,
-                startDate: today,
-                durationDays: 1,
-                pointsValue: 0,
-                notes: "Bajarildi ✅"
-            )
-        ]
+                // KEYINGI KUNLAR REJASI (Quadratics 25-Oktabr Sunday Bufferga ko'chirilgan!)
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct23-sat-sr-wic-d7"),
+                    title: "[SAT SR] Words in Context — Day 7 Review (+10.5 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .small,
+                    satStage: .day7,
+                    scheduledDate: "2026-10-23",
+                    startDate: "2026-10-22",
+                    durationDays: 2,
+                    pointsValue: 10.5,
+                    notes: "23-Oktabr (Juma) 18:25 bloki"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct23-sat-sr-verb-d3"),
+                    title: "[SAT SR] Verb Tense, Modifiers & Parallelism — Day 3 Recall (+8 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .small,
+                    satStage: .day3,
+                    scheduledDate: "2026-10-23",
+                    startDate: "2026-10-22",
+                    durationDays: 2,
+                    pointsValue: 8.0,
+                    notes: "23-Oktabr (Juma) 18:25 bloki"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct23-sat-math-exp"),
+                    title: "[SAT Kat-1 Math] Exponential Functions (Ingest 30%) & Basic Statistics (+29 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .big,
+                    satStage: .ingest,
+                    scheduledDate: "2026-10-23",
+                    startDate: "2026-10-22",
+                    durationDays: 2,
+                    pointsValue: 29.0,
+                    notes: "23-Oktabr (Juma) 19:30 asosiy darsi"
+                ),
+                TaskItem(
+                    id: TaskItem.deterministicUUID(from: "oct25-sat-math-quad"),
+                    title: "[SAT Math] Quadratic Functions & Parabolas — Deep Focus (+24 ball)",
+                    isCompleted: false,
+                    sourceSystem: .sat,
+                    accumulatorSize: .big,
+                    satStage: .ingest,
+                    scheduledDate: "2026-10-25",
+                    startDate: "2026-10-22",
+                    durationDays: 4,
+                    pointsValue: 24.0,
+                    notes: "25-Oktabr (Yakshanba, Sunday Buffer 14:30 – 17:00) qulay seansga ko'chirilgan"
+                )
+            ]
+            self.tasks = oct22Tasks
+            saveTasks()
+        }
 
-        self.tasks = oct18Tasks
-        saveTasks()
-        showToast("⚡ 18-Oktabr vazifalari va 654 SAT ball to'liq sinxronlandi!")
-        return "✅ 18-Oktabr (Yakshanba) jadvali sinxronlandi:\n• SAT: \(satTracker.totalSATScore)/1600 (Math: \(satTracker.currentMathScore) | RW: \(satTracker.currentRWScore))\n• ExAcc: \(formatPoints(exAcc.totalStandardCharge)) ball\n• Bugungi faol vazifalar: 5 ta (Ochiq ko'k)\n• Keyingi kunlar (Dushanba+): 3 ta\n• Bajarilganlar: 5 ta (Yashil)"
+        autoRolloverAndArchiveRPADates()
+        return "✅ 22-Oktabr jadvali va RPA 3-kunlik tizimi sinxronlandi: SAT \(satTracker.totalSATScore)/1600 (Math: \(satTracker.currentMathScore) | RW: \(satTracker.currentRWScore)) • ExAcc: \(formatPoints(exAcc.totalStandardCharge)) ball • Gu No-Error: \(currentGuNoErrorScore)/20%"
     }
 
     private func migrateToV5_2Oct18SynergyIfNeeded() {
-        // If tasks are empty or migration hasn't run yet, sync Oct 18 tasks & scores cleanly
         if !settings.migratedV5_2Oct18TerminalBackup || tasks.isEmpty {
-            _ = syncOct18ScheduleAndScores(force: true)
+            _ = syncTodayScheduleAndScores(force: false)
             settings.migratedV3Oct16 = true
             settings.migratedV3_1BlueSpectrum = true
             settings.migratedV5_2Oct18TerminalBackup = true
             saveSettings()
+        } else {
+            // Even if already migrated, upgrade old generic Eslatmalar rules to the 3 RPA Anti-Habits if untouched
+            if rules.first?.title.contains("Fokus vaqtida telefon") == true {
+                self.rules = RuleItem.defaultRPARules
+                saveRules()
+            }
+            if satTracker.totalSATScore < 791 {
+                satTracker = SATTrackerState()
+                saveSATTracker()
+            }
+            if exAcc.totalStandardCharge < 230 {
+                exAcc.totalStandardCharge = 230
+                saveExAcc()
+            }
         }
     }
 
@@ -465,6 +692,7 @@ public final class StorageManager: ObservableObject {
     }
 
     public func saveRules() { atomicWriteJSON(rules, to: rulesFileURL) }
+    public func saveRPAArchive() { atomicWriteJSON(rpaArchive, to: rpaArchiveFileURL) }
     public func saveTasks() { atomicWriteJSON(tasks, to: tasksFileURL) }
     public func saveSATTracker() {
         atomicWriteJSON(satTracker, to: satFileURL)
@@ -507,30 +735,38 @@ public final class StorageManager: ObservableObject {
     }
 
     public func showToast(_ message: String) {
+        // Never show inline toastBanner if window is collapsed into mini-bar, preventing any height expansion
+        guard !settings.isNotesCollapsed else { return }
         self.toastBanner = message
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
-            if self?.toastBanner == message {
-                self?.toastBanner = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) { [weak self] in
+            guard let self = self else { return }
+            if self.toastBanner == message {
+                self.toastBanner = nil
+                WindowController.shared.enforceCollapsedHeightIfNeeded()
             }
         }
     }
 
-    // MARK: - Rules Management
+    // MARK: - RPA (Anti-Habit) Management
 
-    public func addRule(title: String, type: RPARuleType, isLocked: Bool = false) {
+    public func addRule(title: String, type: RPARuleType = .dontRule, isLocked: Bool = false) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let item = RuleItem(title: trimmed, ruleType: type, isLocked: isLocked)
-        rules.insert(item, at: 0)
+        rules.append(item)
         saveRules()
-        appendHistoryLine("- [RPA+] [{TIMESTAMP}] [\(type.rawValue)] \(trimmed)")
+        autoRolloverAndArchiveRPADates()
+        appendHistoryLine("- [RPA+] [{TIMESTAMP}] Yangi taqiqlangan odat qo'shildi: \(trimmed)")
     }
 
     public func updateRule(_ rule: RuleItem, newTitle: String, newType: RPARuleType) {
         guard let idx = rules.firstIndex(where: { $0.id == rule.id }) else { return }
-        rules[idx].title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        rules[idx].title = trimmed
         rules[idx].ruleType = newType
         saveRules()
+        autoRolloverAndArchiveRPADates()
     }
 
     public func toggleRuleLock(_ rule: RuleItem) {
@@ -546,6 +782,7 @@ public final class StorageManager: ObservableObject {
     public func deleteRuleForce(_ rule: RuleItem) {
         rules.removeAll { $0.id == rule.id }
         saveRules()
+        autoRolloverAndArchiveRPADates()
         appendHistoryLine("- [RPA-] [{TIMESTAMP}] O'chirildi: \(rule.title)")
     }
 
@@ -871,18 +1108,36 @@ public final class StorageManager: ObservableObject {
         }
     }
 
+    // MARK: - Copy Gemini Report (With 3-Day RPA Table & Gu No-Error 20% Synergy)
+
     public func copyGeminiSyncReportToClipboard() -> String {
-        let today = TaskItem.todayString()
+        autoRolloverAndArchiveRPADates()
+        let today = rpaTodayString
+        let cols = rpaThreeDayColumns
         let completedToday = tasks.filter { $0.isCompleted }
         let overdueSAT = satTracker.topics.filter { $0.hasOverdueCheckpoint }
+        let noErrorPct = currentGuNoErrorScore
+        let yesterdayNoErrorPct = guNoErrorSectorScore(for: rpaYesterdayString)
 
         var report = """
         # 📊 FocusCorner Synergy Report (\(today))
         - **Umumiy SAT Balli:** \(satTracker.totalSATScore) / 1600 (Math: \(satTracker.currentMathScore) | RW: \(satTracker.currentRWScore))
         - **ExAcc Standart Zaryad:** \(formatPoints(exAcc.totalStandardCharge)) ball (Faol Acc: \(exAcc.activeMissionsCount)/2)
+        - **Gu No-Error Sektori (RPA 20%):** \(noErrorPct) / 20% (Bugun: \(todayRPAXCount) ta X | Kecha: \(yesterdayRPAXCount) ta X -> \(yesterdayNoErrorPct)/20%)
 
-        ## ✅ Bajarilgan Vazifalar:
+        ## 🛡 RPA Jadvali (3 Kunlik Anti-Odat & Gu No-Error Nazorati):
+        | Qilmaslik Kerak Bo'lgan Odat (RPA) | \(cols[0].title) (\(cols[0].shortDate)) | \(cols[1].title) (\(cols[1].shortDate)) | \(cols[2].title) (\(cols[2].shortDate)) |
+        | :--- | :---: | :---: | :---: |
         """
+
+        for rule in rules {
+            let c0 = rule.isMarkedX(on: cols[0].dateString) ? "[ X ]" : "[ — ]"
+            let c1 = rule.isMarkedX(on: cols[1].dateString) ? "[ X ]" : "[ — ]"
+            let c2 = rule.isMarkedX(on: cols[2].dateString) ? "[ X ]" : "[ — ]"
+            report += "\n| \(rule.title) | \(c0) | \(c1) | \(c2) |"
+        }
+
+        report += "\n\n## ✅ Bajarilgan Vazifalar:"
         if completedToday.isEmpty {
             report += "\n- Hozircha belgilangan vazifa yo'q."
         } else {
@@ -902,14 +1157,22 @@ public final class StorageManager: ObservableObject {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(report, forType: .string)
-        showToast("📋 Gemini uchun hisobot buferga (Clipboard) nusxalandi!")
+        showToast("📋 Gemini hisoboti (3-kunlik RPA + Gu No-Error bilan) buferga nusxalandi!")
+        WindowController.shared.enforceCollapsedHeightIfNeeded()
         return report
     }
 
     private func startSafetyProtocolTimer() {
         protocolTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.refreshSafetyProtocolStatus()
+                guard let self = self else { return }
+                let nowToday = TaskItem.todayString()
+                if nowToday != self.lastObservedTodayString {
+                    self.lastObservedTodayString = nowToday
+                    self.autoRolloverAndArchiveRPADates()
+                    self.syncGuApertureNoErrorIfInstalled()
+                }
+                self.refreshSafetyProtocolStatus()
             }
         }
     }
