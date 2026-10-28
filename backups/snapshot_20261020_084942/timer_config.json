@@ -1,0 +1,29 @@
+{
+  "adaptiveRPAWhenTimerStarts" : true,
+  "autoAdvanceExamParts" : true,
+  "examParts" : [
+    {
+      "durationMinutes" : 60,
+      "id" : "D2656CED-4EE6-48EE-8557-7DE0224FC2E7",
+      "kind" : "WORK",
+      "title" : "1-Part: Asosiy Chuqur Ish"
+    },
+    {
+      "durationMinutes" : 10,
+      "id" : "80559C2D-1A71-45D8-917A-90D255FEDADE",
+      "kind" : "REST",
+      "title" : "2-Part: Dam olish va Tiklanish"
+    },
+    {
+      "durationMinutes" : 45,
+      "id" : "9DEC0C64-733D-4927-ACF1-91A28F6EC012",
+      "kind" : "WORK",
+      "title" : "3-Part: Ikkinchi Fokus Bloki"
+    }
+  ],
+  "hideTasksWhenTimerStarts" : true,
+  "mode" : "SINGULAR",
+  "singularMinutes" : 25,
+  "timerOriginX" : 536,
+  "timerOriginY" : 769
+}

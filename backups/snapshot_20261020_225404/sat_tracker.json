@@ -1,0 +1,505 @@
+{
+  "baseMathScore" : 208,
+  "baseRWScore" : 200,
+  "systemVersion" : "SSS v5.2 (1-3-7-14-30 Verified • Oct 18)",
+  "topics" : [
+    {
+      "category" : "Kat-1 (High-Yield Deep Focus)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-11",
+          "dueDate" : "2026-10-11",
+          "id" : "62C6E4D3-7115-4887-A83A-5C0B27FE6EE9",
+          "isCompleted" : true,
+          "pointsDelta" : 16,
+          "stage" : "DAY_1"
+        },
+        {
+          "completedDate" : "2026-10-14",
+          "dueDate" : "2026-10-13",
+          "id" : "CCC56453-7B97-46D2-A2EC-385063129A03",
+          "isCompleted" : true,
+          "pointsDelta" : 16,
+          "stage" : "DAY_3"
+        },
+        {
+          "completedDate" : "2026-10-18",
+          "dueDate" : "2026-10-17",
+          "id" : "2E8ACC5D-C5AF-4B1F-9BCB-6CB00B73CBE4",
+          "isCompleted" : true,
+          "pointsDelta" : 12,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-10-24",
+          "id" : "B004550C-D258-41B3-9E8E-4AAE3D0C0AC8",
+          "isCompleted" : false,
+          "pointsDelta" : 12,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-09",
+          "id" : "E5D04829-0B0D-43D3-B81D-C66B7E4EB97F",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 68,
+      "id" : "343DBBC5-6314-48A2-843B-A19CDCF02522",
+      "learnedDate" : "2026-10-10",
+      "potentialWeight" : 80,
+      "section" : "SAT Math",
+      "status" : "Consolidated (85%)",
+      "title" : "Linear Functions & Systems",
+      "trapsAndNotes" : "Sign trap: 3 - (-1) = 4; Standart ko'rinishda y ni yolg'iz qoldirish; Perpendikulyar -1\/m; No Solution vs Infinitely Many."
+    },
+    {
+      "category" : "Kat-2 (Standard)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-14",
+          "dueDate" : "2026-10-14",
+          "id" : "44118840-E41E-47A8-AB68-91C6EC3ADB4B",
+          "isCompleted" : true,
+          "pointsDelta" : 8,
+          "stage" : "DAY_1"
+        },
+        {
+          "completedDate" : "2026-10-16",
+          "dueDate" : "2026-10-16",
+          "id" : "5DFE198E-1380-4DDF-B71A-9023E3999F66",
+          "isCompleted" : true,
+          "pointsDelta" : 8,
+          "stage" : "DAY_3"
+        },
+        {
+          "completedDate" : "2026-10-20",
+          "dueDate" : "2026-10-20",
+          "id" : "0993FFFA-3489-49C6-9F88-24162C0C637A",
+          "isCompleted" : true,
+          "pointsDelta" : 0,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-10-27",
+          "id" : "7FEE474E-ED57-41E6-AD8D-3ED887468CD3",
+          "isCompleted" : false,
+          "pointsDelta" : 7,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-12",
+          "id" : "384837C3-CDDD-4882-A979-BC12811B79E2",
+          "isCompleted" : false,
+          "pointsDelta" : 7,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 37,
+      "id" : "A5771F61-E2CF-47FC-AD48-F37CC7EA9175",
+      "learnedDate" : "2026-10-13",
+      "potentialWeight" : 50,
+      "section" : "SAT Math",
+      "status" : "Refined (70%)",
+      "title" : "Ratios, Rates, Percentages & Unit Conversions",
+      "trapsAndNotes" : "Multiplier method (1.25, 0.85); Maydon\/hajm birliklarida kvadrat\/kub; O'rtacha tezlik = Jami masofa \/ Jami vaqt."
+    },
+    {
+      "category" : "Kat-1 (High-Yield Deep Focus)",
+      "checkpoints" : [
+        {
+          "dueDate" : "2026-10-18",
+          "id" : "D3F077CB-6240-4AA4-8958-C360E0719767",
+          "isCompleted" : false,
+          "pointsDelta" : 14,
+          "stage" : "DAY_1"
+        },
+        {
+          "dueDate" : "2026-10-20",
+          "id" : "981580B2-55BB-4716-9BEF-2B2EBCE867AF",
+          "isCompleted" : false,
+          "pointsDelta" : 14,
+          "stage" : "DAY_3"
+        },
+        {
+          "completedDate" : "2026-10-19",
+          "dueDate" : "2026-10-24",
+          "id" : "7F3D1AE6-49E5-4FDA-9101-F86D19D4F5F0",
+          "isCompleted" : false,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-10-31",
+          "id" : "FC1ECA86-1B0C-4F36-A17C-F23C59540314",
+          "isCompleted" : false,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-16",
+          "id" : "455C847F-5D83-4848-AE97-B0D62511A965",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 0,
+      "id" : "A28735B7-4366-4E32-8DAE-C1436B565CE9",
+      "learnedDate" : "2026-10-23",
+      "potentialWeight" : 70,
+      "section" : "SAT Math",
+      "status" : "Boshlanmagan (0%)",
+      "title" : "Exponential Functions & Growth\/Decay",
+      "trapsAndNotes" : "f(t) = a(1 + r)^(t\/k); y-intercept boshlang'ich qiymat a; har k vaqt oralig'ida o'zgarish."
+    },
+    {
+      "category" : "Kat-1 (High-Yield Deep Focus)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-12",
+          "dueDate" : "2026-10-12",
+          "id" : "6DCFB19D-D8E7-4654-A454-711BE37BE6C0",
+          "isCompleted" : true,
+          "pointsDelta" : 14,
+          "stage" : "DAY_1"
+        },
+        {
+          "completedDate" : "2026-10-14",
+          "dueDate" : "2026-10-14",
+          "id" : "BBA29DA8-19FF-484B-8F28-F954615CC70D",
+          "isCompleted" : true,
+          "pointsDelta" : 14,
+          "stage" : "DAY_3"
+        },
+        {
+          "completedDate" : "2026-10-18",
+          "dueDate" : "2026-10-18",
+          "id" : "7A1DBA03-2BCA-4538-97E6-D657BAE0E36D",
+          "isCompleted" : true,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-10-25",
+          "id" : "78D0BB01-81C9-4855-8C53-5616E8C76C72",
+          "isCompleted" : false,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-10",
+          "id" : "774FEBC2-B0B3-487C-B395-CE28F2DA78A0",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 59.5,
+      "id" : "0B98B810-F721-4209-9802-EDFDFA5833FF",
+      "learnedDate" : "2026-10-11",
+      "potentialWeight" : 70,
+      "section" : "SAT Reading & Writing",
+      "status" : "Consolidated (85%)",
+      "title" : "Transitions (Logical Connectors)",
+      "trapsAndNotes" : "Contrast vs Cause\/Effect vs Addition. Oldingi va keyingi gap mantiqini bog'lovchisiz o'qib ko'rish."
+    },
+    {
+      "category" : "Kat-2 (Standard)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-14",
+          "dueDate" : "2026-10-13",
+          "id" : "B4D01845-1A00-4DC2-A7C2-9F168AEF0E6E",
+          "isCompleted" : true,
+          "pointsDelta" : 8,
+          "stage" : "DAY_1"
+        },
+        {
+          "completedDate" : "2026-10-16",
+          "dueDate" : "2026-10-15",
+          "id" : "B7C22692-B332-4BA2-905B-784F507B8E8E",
+          "isCompleted" : true,
+          "pointsDelta" : 8,
+          "stage" : "DAY_3"
+        },
+        {
+          "completedDate" : "2026-10-19",
+          "dueDate" : "2026-10-19",
+          "id" : "5DCF2CD3-8F76-4A4D-8D35-C178ECBD0E05",
+          "isCompleted" : true,
+          "pointsDelta" : 6,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-10-26",
+          "id" : "E5DA5C59-7429-4A4F-886A-158423F172EB",
+          "isCompleted" : false,
+          "pointsDelta" : 6,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-11",
+          "id" : "D5556E32-02C4-46CB-ABA7-9E4D4710CFC5",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 40,
+      "id" : "9A0C9AFF-E3B0-41A3-9B9A-1F0A0FAC2EC6",
+      "learnedDate" : "2026-10-12",
+      "potentialWeight" : 40,
+      "section" : "SAT Reading & Writing",
+      "status" : "MASTERED (100%)",
+      "title" : "Subject-Verb Agreement & Pronouns",
+      "trapsAndNotes" : "Prepositional phrases (of\/in\/with...) ega bo'la olmaydi; Singular vs Plural pronoun antecedent."
+    },
+    {
+      "category" : "Kat-1 (High-Yield Deep Focus)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-18",
+          "dueDate" : "2026-10-17",
+          "id" : "B80A38B0-A477-482C-835B-091B6E856F23",
+          "isCompleted" : true,
+          "pointsDelta" : 8,
+          "stage" : "DAY_1"
+        },
+        {
+          "dueDate" : "2026-10-19",
+          "id" : "E9352629-AC70-45C5-AF71-3D102039CCE4",
+          "isCompleted" : false,
+          "pointsDelta" : 14,
+          "stage" : "DAY_3"
+        },
+        {
+          "dueDate" : "2026-10-23",
+          "id" : "164E1CA6-9473-47D6-8859-3C1F590049A6",
+          "isCompleted" : false,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-10-30",
+          "id" : "1D07FB3D-13B0-4B82-B147-3147A2D838BE",
+          "isCompleted" : false,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-15",
+          "id" : "F755BEAE-67FC-4E8C-8946-6051BA9C3B4D",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 29,
+      "id" : "62A22102-D3C7-4BFA-9EC4-88390E21D59A",
+      "learnedDate" : "2026-10-16",
+      "potentialWeight" : 70,
+      "section" : "SAT Reading & Writing",
+      "status" : "Refined (50%)",
+      "title" : "Words in Context",
+      "trapsAndNotes" : "Context clue charge (+\/-), Semantik juftlik va Contrast signal so'zlar."
+    },
+    {
+      "category" : "Kat-2 (Standard)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-15",
+          "dueDate" : "2026-10-15",
+          "id" : "F9DE8550-82A5-4451-A6A4-78C7D2CDB12E",
+          "isCompleted" : true,
+          "pointsDelta" : 12,
+          "stage" : "DAY_1"
+        },
+        {
+          "completedDate" : "2026-10-17",
+          "dueDate" : "2026-10-17",
+          "id" : "F206E306-D5B5-4C55-B250-5F1542DBEF80",
+          "isCompleted" : true,
+          "pointsDelta" : 11,
+          "stage" : "DAY_3"
+        },
+        {
+          "dueDate" : "2026-10-21",
+          "id" : "EAFAED48-676D-4F81-9D6A-3E2C3CDD1EDE",
+          "isCompleted" : false,
+          "pointsDelta" : 9,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-10-28",
+          "id" : "99582C26-9FB5-45CE-8064-6BF2119588E9",
+          "isCompleted" : false,
+          "pointsDelta" : 9,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-13",
+          "id" : "078B8341-25E3-4258-9902-1A2C012A5AA9",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 41,
+      "id" : "B43FF45D-046B-4212-A53B-C9163E804A5F",
+      "learnedDate" : "2026-10-14",
+      "potentialWeight" : 60,
+      "section" : "SAT Reading & Writing",
+      "status" : "Refined (70%)",
+      "title" : "Central Ideas & Command of Evidence",
+      "trapsAndNotes" : "Too broad vs Too narrow javob tuzoqlari; faqat matnda bevosita isbotlangan dalil."
+    },
+    {
+      "category" : "Kat-1 (High-Yield Deep Focus)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-20",
+          "dueDate" : "2026-10-20",
+          "id" : "4495C47D-DDBC-44A9-BFC9-EC1535252137",
+          "isCompleted" : true,
+          "pointsDelta" : 16,
+          "stage" : "DAY_1"
+        },
+        {
+          "dueDate" : "2026-10-22",
+          "id" : "9F599364-A919-428F-B6C8-F7CA81C668CA",
+          "isCompleted" : false,
+          "pointsDelta" : 16,
+          "stage" : "DAY_3"
+        },
+        {
+          "dueDate" : "2026-10-26",
+          "id" : "83242EA7-327D-49FF-A1D2-1A6B24E30423",
+          "isCompleted" : false,
+          "pointsDelta" : 12,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-11-02",
+          "id" : "C39E5143-5DD6-4DE1-9495-28555938C44D",
+          "isCompleted" : false,
+          "pointsDelta" : 12,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-18",
+          "id" : "613F9A61-CA31-492B-A9FC-38A106AC9D1F",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 32,
+      "id" : "BC676CDC-3C42-42C9-A6CF-E0E1CF7F3D71",
+      "learnedDate" : "2026-10-19",
+      "potentialWeight" : 80,
+      "section" : "SAT Math",
+      "status" : "Ingested (30%)",
+      "title" : "Linear Inequalities & Word Problems — Ingest 30% (+24 ball)",
+      "trapsAndNotes" : "Systems of inequalities, boundary lines & word problems"
+    },
+    {
+      "category" : "Kat-1 (High-Yield Deep Focus)",
+      "checkpoints" : [
+        {
+          "completedDate" : "2026-10-20",
+          "dueDate" : "2026-10-20",
+          "id" : "797C9F24-2C05-475F-ADD4-55C9ABED65EE",
+          "isCompleted" : true,
+          "pointsDelta" : 14,
+          "stage" : "DAY_1"
+        },
+        {
+          "dueDate" : "2026-10-22",
+          "id" : "6C30A342-8CB4-41B7-821B-8581F9F99DAD",
+          "isCompleted" : false,
+          "pointsDelta" : 14,
+          "stage" : "DAY_3"
+        },
+        {
+          "dueDate" : "2026-10-26",
+          "id" : "90714EE7-308D-436B-B04A-C509EA1BC9A8",
+          "isCompleted" : false,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-11-02",
+          "id" : "A262B8B2-8C44-4773-8EF5-580E7C5D1DE8",
+          "isCompleted" : false,
+          "pointsDelta" : 10.5,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-18",
+          "id" : "D215DCBF-AC5F-491C-A3C4-2D28B5BBCF39",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 35,
+      "id" : "3DCDE786-440C-4E06-958D-C0D366ECF08B",
+      "learnedDate" : "2026-10-19",
+      "potentialWeight" : 70,
+      "section" : "SAT Reading & Writing",
+      "status" : "Refined (50%)",
+      "title" : "Boundaries & Punctuation (+21 ball)",
+      "trapsAndNotes" : "Semicolons, Colons, Dashes, Commas & Run-ons"
+    },
+    {
+      "category" : "Kat-2 (Standard)",
+      "checkpoints" : [
+        {
+          "dueDate" : "2026-10-21",
+          "id" : "D794E378-DFF7-4766-AE49-865F6BED8AD2",
+          "isCompleted" : false,
+          "pointsDelta" : 8,
+          "stage" : "DAY_1"
+        },
+        {
+          "dueDate" : "2026-10-23",
+          "id" : "CA2246C7-9589-4D1D-A67A-C225485C08D6",
+          "isCompleted" : false,
+          "pointsDelta" : 8,
+          "stage" : "DAY_3"
+        },
+        {
+          "dueDate" : "2026-10-27",
+          "id" : "0E3F4EFD-E803-4D5C-9CA6-AA4BEEF7B4BD",
+          "isCompleted" : false,
+          "pointsDelta" : 6,
+          "stage" : "DAY_7"
+        },
+        {
+          "dueDate" : "2026-11-03",
+          "id" : "35F55108-81D5-486D-9CC4-20970646ADD8",
+          "isCompleted" : false,
+          "pointsDelta" : 6,
+          "stage" : "DAY_14"
+        },
+        {
+          "dueDate" : "2026-11-19",
+          "id" : "C506632C-D782-428C-A701-615ADA5CE13F",
+          "isCompleted" : false,
+          "pointsDelta" : 0,
+          "stage" : "DAY_30"
+        }
+      ],
+      "currentScore" : 12,
+      "id" : "B84FE922-37D3-4FDC-907D-9145D80EE120",
+      "learnedDate" : "2026-10-20",
+      "potentialWeight" : 40,
+      "section" : "SAT Reading & Writing",
+      "status" : "Ingested (30%)",
+      "title" : "Verb Tense, Modifiers & Parallelism — Ingest 30% (+12 ball)",
+      "trapsAndNotes" : "Bugun 19:30 dagi yangi Kat-2 English grammatika darsi"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "attachments" : [
+      {
+        "createdAt" : "2026-10-18 20:58",
+        "id" : "E9D430B7-DA41-493B-8C1E-1BB40D955E98",
+        "kind" : "AUDIO",
+        "relativeFilePath" : "media\/voice_1792339031.m4a",
+        "title" : "Ovozli xabar (01:23 • 20:58)"
+      }
+    ],
+    "category" : "QUICK_CAPTURE",
+    "createdAt" : "2026-10-18 20:57",
+    "pageId" : "page_1792339028",
+    "rtfFileName" : "page_1792339028.rtf",
+    "title" : "Eslab qolish #2 (2026-10-18)",
+    "updatedAt" : "2026-10-19 09:29"
+  },
+  {
+    "attachments" : [
+
+    ],
+    "category" : "QUICK_CAPTURE",
+    "createdAt" : "2026-10-16 21:15",
+    "pageId" : "page_1",
+    "rtfFileName" : "page_1.rtf",
+    "title" : "Eslab qolish #1",
+    "updatedAt" : "2026-10-18 20:57"
+  }
+]

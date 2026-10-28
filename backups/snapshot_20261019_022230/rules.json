@@ -1,0 +1,37 @@
+[
+  {
+    "createdAt" : "2026-10-15T06:52:11Z",
+    "id" : "92178F3B-3955-4EB5-AE21-3E389BE5DE3C",
+    "isLocked" : false,
+    "ruleType" : "DONT",
+    "title" : "No social media fully: Instagram and etc"
+  },
+  {
+    "createdAt" : "2026-10-15T06:52:11Z",
+    "id" : "87902BF7-5E54-490A-9B95-6DC1CE5BAAD5",
+    "isLocked" : false,
+    "ruleType" : "DONT",
+    "title" : "No Maladaptive Daydreaming"
+  },
+  {
+    "createdAt" : "2026-10-15T06:52:11Z",
+    "id" : "10349BF6-5904-4CB4-B73F-28B82279E10B",
+    "isLocked" : false,
+    "ruleType" : "DONT",
+    "title" : "No slacking"
+  },
+  {
+    "createdAt" : "2026-10-15T06:52:11Z",
+    "id" : "74C06EC7-23D6-4564-93D0-6990B9EA0D63",
+    "isLocked" : false,
+    "ruleType" : "DONT",
+    "title" : "No sleep until you finish task"
+  },
+  {
+    "createdAt" : "2026-10-15T06:52:11Z",
+    "id" : "36544AC7-9610-40D1-9214-BC948619B94C",
+    "isLocked" : true,
+    "ruleType" : "PROTOCOL",
+    "title" : "Hard Stop 00:30 — Uyqu vaqtiga daxl qilish qat'iyan taqiqlanadi"
+  }
+]
