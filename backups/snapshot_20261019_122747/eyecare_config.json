@@ -1,7 +1,0 @@
-{
-  "isEnabled" : true,
-  "macroDurationSeconds" : 180,
-  "macroEveryNCycles" : 3,
-  "microDurationSeconds" : 20,
-  "microIntervalMinutes" : 20
-}
